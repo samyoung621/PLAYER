@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>球員成績表（含照片）</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th.sticky, td.sticky { position: sticky; left: 0; background: #f9f9f9; z-index: 2; }
+    th { cursor: pointer; background: #eee; }
+    td.highlight { background-color: #ffe066; font-weight: bold; }
+    img.photo-thumb { width: 40px; height: 40px; border-radius: 50%; vertical-align: middle; margin-right: 5px; }
+
+    #modal {
+      display: none;
+      position: fixed;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      padding: 20px;
+      border: 1px solid #333;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      max-width: 400px;
+      z-index: 100;
+    }
+
+    #modal img.photo-large {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      display: block;
+      margin: 0 auto 15px;
+    }
+
+    #modalClose {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>球員成績表（含照片）</h1>
+<label><input type="checkbox" id="freezeCols" checked> 凍結背號與姓名欄</label>
+<br/><br/>
+<div style="overflow:auto; max-height:80vh;">
+  <table id="statsTable">
+    <thead><tr id="headerRow"></tr></thead>
+    <tbody id="bodyRows"></tbody>
+    <tfoot><tr id="avgRow"></tr></tfoot>
+  </table>
+</div>
+
+<!-- Modal -->
+<div id="modal">
+  <img src="" alt="照片" id="modalPhoto" class="photo-large">
+  <div id="modalContent"></div>
+  <button id="modalClose">關閉</button>
+</div>
+
+<script>
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQltivRfnLpZ31pQaugHsIJWHlDqdkks4qRriATwyig2G1XZfjcszSjYrWYkpEbBlsFYZFi_9s2FLhu/pub?output=csv';
+
+let rawData = [], headers = [];
+
+Papa.parse(CSV_URL, {
+  download: true,
+  dynamicTyping: true,
+  complete: results => {
+    rawData = results.data.filter(r => r.length && r.some(c => c !== null && c !== ''));
+    headers = rawData.shift();
+    headers.push('OPS', 'OPS+');
+    computeOPSandOPSPlus();
+    initTable();
+    renderRows();
+    computeAvg();
+  },
+  error: err => console.error(err)
+});
+
+function computeOPSandOPSPlus() {
+  rawData.forEach(row => {
+    const obp = parseFloat(row[headers.indexOf('OBP')]) || 0;
+    const slg = parseFloat(row[headers.indexOf('SLG')]) || 0;
+    row[headers.length - 2] = obp + slg; // OPS
+  });
+  const opsList = rawData.map(r=>r[headers.length - 2]);
+  const avgOPS = opsList.reduce((a,b)=>a+b,0)/opsList.length;
+  rawData.forEach(row => {
+    const ops = row[headers.length - 2];
+    row[headers.length - 1] = Math.round(avgOPS>0 ? 100*ops/avgOPS : 0); // OPS+
+  });
+}
+
+function initTable() {
+  const tr = document.getElementById('headerRow');
+  tr.innerHTML = '';
+  headers.forEach((h,i)=>{
+    const th = document.createElement('th');
+    th.textContent = h;
+    th.dataset.col = i;
+    th.addEventListener('click', ()=>sortByColumn(i));
+    if (i===0||i===1) th.classList.add('sticky');
+    tr.appendChild(th);
+  });
+}
+
+function renderRows() {
+  const tbody = document.getElementById('bodyRows');
+  tbody.innerHTML = '';
+
+  const maxPerColumn = {};
+  headers.forEach((_,i)=>{
+    const nums = rawData.map(r=>r[i]).filter(v=>typeof v==='number');
+    if (nums.length) maxPerColumn[i] = Math.max(...nums);
+  });
+
+  rawData.forEach(row=>{
+    const tr = document.createElement('tr');
+    row.forEach((cell,i)=>{
+      const td = document.createElement('td');
+      if (i===1 && headers.includes('Photo')) {
+        const photoUrl = row[headers.indexOf('Photo')];
+        if (photoUrl) {
+          td.innerHTML = `<img src="${photoUrl}" class="photo-thumb"> ${row[1]}`;
+        } else td.textContent = row[1];
+      } else {
+        td.textContent = typeof cell==='number' ? cell.toFixed(3) : cell;
+      }
+      if (i===0||i===1) td.classList.add('sticky');
+      if (i===1) {
+        td.querySelector('a,td').addEventListener?.('click',()=>showModal(row));
+        td.addEventListener('click',()=>showModal(row));
+      }
+      if (typeof cell==='number' && maxPerColumn[i]===cell) {
+        td.classList.add('highlight');
+      }
+      tr.appendChild(td);
+    });
+    tr.addEventListener('click',()=>showModal(row));
+    tbody.appendChild(tr);
+  });
+}
+
+function computeAvg() {
+  const tr = document.getElementById('avgRow');
+  tr.innerHTML = '';
+  headers.forEach((_,i)=>{
+    const td = document.createElement('td');
+    if (i===0) td.textContent='平均';
+    else {
+      const nums = rawData.map(r=>r[i]).filter(v=>typeof v==='number');
+      const avg = nums.length ? nums.reduce((a,b)=>a+b)/nums.length : '';
+      td.textContent = avg ? avg.toFixed(3) : '';
+    }
+    if (i===0||i===1) td.classList.add('sticky');
+    tr.appendChild(td);
+  });
+}
+
+function sortByColumn(i) {
+  rawData.sort((a,b)=>{
+    const da=a[i], db=b[i];
+    if (typeof da==='number'&&typeof db==='number') return db-da;
+    return String(da).localeCompare(db);
+  });
+  renderRows();
+}
+
+function showModal(row) {
+  const modal = document.getElementById('modal');
+  document.getElementById('modalPhoto').src = row[headers.indexOf('Photo')] || '';
+  const content = document.getElementById('modalContent');
+  content.innerHTML = '';
+  headers.forEach((h,i)=>{
+    if (h==='Photo') return;
+    const p = document.createElement('p');
+    p.textContent = `${h}: ${typeof row[i]==='number'?row[i].toFixed(3):row[i]}`;
+    content.appendChild(p);
+  });
+  modal.style.display='block';
+}
+document.getElementById('modalClose').addEventListener('click',()=>{
+  document.getElementById('modal').style.display='none';
+});
+</script>
+
+</body>
+</html>
