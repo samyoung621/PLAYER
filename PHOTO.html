@@ -1,189 +1,428 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>球員成績表（含照片）</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th.sticky, td.sticky { position: sticky; left: 0; background: #f9f9f9; z-index: 2; }
-    th { cursor: pointer; background: #eee; }
-    td.highlight { background-color: #ffe066; font-weight: bold; }
-    img.photo-thumb { width: 40px; height: 40px; border-radius: 50%; vertical-align: middle; margin-right: 5px; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>球員數據儀表板</title>
+    <style>
+        /* 基本樣式 */
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #1a237e;
+        }
+        /* 表格容器，用於處理水平捲動 */
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        /* 表格樣式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            white-space: nowrap; /* 讓表格內容不換行 */
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+        /* 表頭樣式 */
+        thead th {
+            background-color: #3f51b5;
+            color: white;
+            position: sticky;
+            top: 0; /* 讓表頭在垂直捲動時固定 */
+            z-index: 10;
+        }
+        /* 可排序的表頭 */
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        th.sortable:hover {
+            background-color: #4f5fbe;
+        }
+        th.sortable::after {
+            content: ' ↕';
+            font-size: 0.8em;
+        }
+        th.sorted-asc::after {
+            content: ' ▲';
+        }
+        th.sorted-desc::after {
+            content: ' ▼';
+        }
+        /* 球員照片樣式 */
+        td img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            vertical-align: middle;
+        }
+        /* 姓名可點擊樣式 */
+        .player-name {
+            color: #007bff;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .player-name:hover {
+            text-decoration: underline;
+        }
+        /* 固定欄位樣式 */
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            background-color: #f0f2f5;
+            z-index: 5;
+            border-right: 2px solid #ccc;
+        }
+        .sticky-col-1 { left: 0; }
+        .sticky-col-2 { left: 80px; } /* 假設第一欄寬度約 80px */
+        .sticky-col-3 { left: 150px; } /* 假設前兩欄總寬度約 150px */
+        
+        /* 表頭也要固定 */
+        thead th.sticky-col {
+             z-index: 15;
+        }
 
-    #modal {
-      display: none;
-      position: fixed;
-      top: 10%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: white;
-      padding: 20px;
-      border: 1px solid #333;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      max-width: 400px;
-      z-index: 100;
-    }
-
-    #modal img.photo-large {
-      width: 100px;
-      height: 100px;
-      border-radius: 50%;
-      display: block;
-      margin: 0 auto 15px;
-    }
-
-    #modalClose {
-      margin-top: 10px;
-    }
-  </style>
+        /* 高亮表現突出球員的樣式 */
+        .highlight {
+            background-color: #fffde7 !important;
+        }
+        /* 斑馬紋 */
+        tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tbody tr:hover {
+            background-color: #e3f2fd;
+        }
+        /* Modal 彈出視窗樣式 */
+        .modal {
+            display: none; /* 預設隱藏 */
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 25px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+        .modal-header h2 {
+            margin: 0;
+            color: #3f51b5;
+        }
+        .close-button {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: #000;
+        }
+        .modal-body {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        .modal-body p {
+            margin: 0;
+            padding: 8px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .modal-body p strong {
+            color: #333;
+        }
+        /* 載入中提示 */
+        #loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+        }
+        /* 動畫效果 */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
 </head>
 <body>
 
-<h1>球員成績表（含照片）</h1>
-<label><input type="checkbox" id="freezeCols" checked> 凍結背號與姓名欄</label>
-<br/><br/>
-<div style="overflow:auto; max-height:80vh;">
-  <table id="statsTable">
-    <thead><tr id="headerRow"></tr></thead>
-    <tbody id="bodyRows"></tbody>
-    <tfoot><tr id="avgRow"></tr></tfoot>
-  </table>
-</div>
+    <h1>球員數據儀表板</h1>
+    <div id="loading">正在從 Google Sheet 載入資料...</div>
+    <div class="table-container" style="display: none;">
+        <table id="stats-table">
+            <thead>
+                </thead>
+            <tbody>
+                </tbody>
+        </table>
+    </div>
 
-<!-- Modal -->
-<div id="modal">
-  <img src="" alt="照片" id="modalPhoto" class="photo-large">
-  <div id="modalContent"></div>
-  <button id="modalClose">關閉</button>
-</div>
+    <div id="player-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-player-name"></h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="modal-body" id="modal-player-stats">
+                </div>
+        </div>
+    </div>
 
 <script>
+// --- 設定 ---
+// Google Sheet CSV 連結
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQltivRfnLpZ31pQaugHsIJWHlDqdkks4qRriATwyig2G1XZfjcszSjYrWYkpEbBlsFYZFi_9s2FLhu/pub?output=csv';
+// OPS 超過多少時要高亮？
+const HIGHLIGHT_OPS_THRESHOLD = 0.9;
+// 固定不捲動的欄位名稱 (必須與 CSV 表頭完全相符)
+const FROZEN_COLUMNS = ['背號', '照片', '姓名'];
 
-let rawData = [], headers = [];
+// --- 主要邏輯 ---
+document.addEventListener('DOMContentLoaded', () => {
+    const tableBody = document.querySelector('#stats-table tbody');
+    const tableHead = document.querySelector('#stats-table thead');
+    const loadingDiv = document.getElementById('loading');
+    const tableContainer = document.querySelector('.table-container');
 
-Papa.parse(CSV_URL, {
-  download: true,
-  dynamicTyping: true,
-  complete: results => {
-    rawData = results.data.filter(r => r.length && r.some(c => c !== null && c !== ''));
-    headers = rawData.shift();
-    headers.push('OPS', 'OPS+');
-    computeOPSandOPSPlus();
-    initTable();
-    renderRows();
-    computeAvg();
-  },
-  error: err => console.error(err)
-});
+    let playerData = [];
+    let sortState = {
+        column: null,
+        direction: 'desc'
+    };
 
-function computeOPSandOPSPlus() {
-  rawData.forEach(row => {
-    const obp = parseFloat(row[headers.indexOf('OBP')]) || 0;
-    const slg = parseFloat(row[headers.indexOf('SLG')]) || 0;
-    row[headers.length - 2] = obp + slg; // OPS
-  });
-  const opsList = rawData.map(r=>r[headers.length - 2]);
-  const avgOPS = opsList.reduce((a,b)=>a+b,0)/opsList.length;
-  rawData.forEach(row => {
-    const ops = row[headers.length - 2];
-    row[headers.length - 1] = Math.round(avgOPS>0 ? 100*ops/avgOPS : 0); // OPS+
-  });
-}
+    // 1. 獲取並處理資料
+    async function fetchData() {
+        try {
+            const response = await fetch(CSV_URL);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const csvText = await response.text();
+            const data = parseCSV(csvText);
+            
+            // 計算 OPS
+            playerData = data.map(player => {
+                const obp = parseFloat(player['上壘率']) || 0;
+                const slg = parseFloat(player['長打率']) || 0;
+                player.OPS = (obp + slg).toFixed(3);
+                return player;
+            });
 
-function initTable() {
-  const tr = document.getElementById('headerRow');
-  tr.innerHTML = '';
-  headers.forEach((h,i)=>{
-    const th = document.createElement('th');
-    th.textContent = h;
-    th.dataset.col = i;
-    th.addEventListener('click', ()=>sortByColumn(i));
-    if (i===0||i===1) th.classList.add('sticky');
-    tr.appendChild(th);
-  });
-}
+            // 初始排序 (預設按 OPS 降冪排序)
+            sortState.column = 'OPS';
+            sortState.direction = 'desc';
+            
+            renderTable();
+            loadingDiv.style.display = 'none';
+            tableContainer.style.display = 'block';
 
-function renderRows() {
-  const tbody = document.getElementById('bodyRows');
-  tbody.innerHTML = '';
-
-  const maxPerColumn = {};
-  headers.forEach((_,i)=>{
-    const nums = rawData.map(r=>r[i]).filter(v=>typeof v==='number');
-    if (nums.length) maxPerColumn[i] = Math.max(...nums);
-  });
-
-  rawData.forEach(row=>{
-    const tr = document.createElement('tr');
-    row.forEach((cell,i)=>{
-      const td = document.createElement('td');
-      if (i===1 && headers.includes('Photo')) {
-        const photoUrl = row[headers.indexOf('Photo')];
-        if (photoUrl) {
-          td.innerHTML = `<img src="${photoUrl}" class="photo-thumb"> ${row[1]}`;
-        } else td.textContent = row[1];
-      } else {
-        td.textContent = typeof cell==='number' ? cell.toFixed(3) : cell;
-      }
-      if (i===0||i===1) td.classList.add('sticky');
-      if (i===1) {
-        td.querySelector('a,td').addEventListener?.('click',()=>showModal(row));
-        td.addEventListener('click',()=>showModal(row));
-      }
-      if (typeof cell==='number' && maxPerColumn[i]===cell) {
-        td.classList.add('highlight');
-      }
-      tr.appendChild(td);
-    });
-    tr.addEventListener('click',()=>showModal(row));
-    tbody.appendChild(tr);
-  });
-}
-
-function computeAvg() {
-  const tr = document.getElementById('avgRow');
-  tr.innerHTML = '';
-  headers.forEach((_,i)=>{
-    const td = document.createElement('td');
-    if (i===0) td.textContent='平均';
-    else {
-      const nums = rawData.map(r=>r[i]).filter(v=>typeof v==='number');
-      const avg = nums.length ? nums.reduce((a,b)=>a+b)/nums.length : '';
-      td.textContent = avg ? avg.toFixed(3) : '';
+        } catch (error) {
+            loadingDiv.textContent = `資料載入失敗：${error.message}。請檢查網路連線或 CSV 連結是否正確。`;
+            console.error('Error fetching or parsing data:', error);
+        }
     }
-    if (i===0||i===1) td.classList.add('sticky');
-    tr.appendChild(td);
-  });
-}
 
-function sortByColumn(i) {
-  rawData.sort((a,b)=>{
-    const da=a[i], db=b[i];
-    if (typeof da==='number'&&typeof db==='number') return db-da;
-    return String(da).localeCompare(db);
-  });
-  renderRows();
-}
+    // 2. 渲染表格
+    function renderTable() {
+        // 先排序
+        sortData();
 
-function showModal(row) {
-  const modal = document.getElementById('modal');
-  document.getElementById('modalPhoto').src = row[headers.indexOf('Photo')] || '';
-  const content = document.getElementById('modalContent');
-  content.innerHTML = '';
-  headers.forEach((h,i)=>{
-    if (h==='Photo') return;
-    const p = document.createElement('p');
-    p.textContent = `${h}: ${typeof row[i]==='number'?row[i].toFixed(3):row[i]}`;
-    content.appendChild(p);
-  });
-  modal.style.display='block';
-}
-document.getElementById('modalClose').addEventListener('click',()=>{
-  document.getElementById('modal').style.display='none';
+        // 清空現有內容
+        tableHead.innerHTML = '';
+        tableBody.innerHTML = '';
+
+        if (playerData.length === 0) return;
+
+        // 建立表頭
+        const headers = Object.keys(playerData[0]);
+        const headerRow = document.createElement('tr');
+        headers.forEach((header, index) => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            th.dataset.column = header;
+            th.classList.add('sortable');
+            
+            // 加上固定欄位的 class
+            if (FROZEN_COLUMNS.includes(header)) {
+                th.classList.add('sticky-col', `sticky-col-${index + 1}`);
+            }
+
+            // 更新排序指示符號
+            if (sortState.column === header) {
+                th.classList.add(sortState.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+            }
+            
+            th.addEventListener('click', () => handleSort(header));
+            headerRow.appendChild(th);
+        });
+        tableHead.appendChild(headerRow);
+
+        // 建立表格內容
+        playerData.forEach(player => {
+            const row = document.createElement('tr');
+            
+            // 根據 OPS 決定是否高亮
+            if (parseFloat(player.OPS) >= HIGHLIGHT_OPS_THRESHOLD) {
+                row.classList.add('highlight');
+            }
+
+            headers.forEach((header, index) => {
+                const cell = document.createElement('td');
+                // 處理照片欄位
+                if (header === '照片' && player[header] && player[header].startsWith('http')) {
+                    const img = document.createElement('img');
+                    img.src = player[header];
+                    img.alt = player['姓名'] || '照片';
+                    cell.appendChild(img);
+                } else if (header === '姓名') {
+                    // 讓姓名可以點擊
+                    const span = document.createElement('span');
+                    span.textContent = player[header];
+                    span.className = 'player-name';
+                    span.addEventListener('click', () => showModal(player));
+                    cell.appendChild(span);
+                } else {
+                    cell.textContent = player[header];
+                }
+                
+                // 加上固定欄位的 class
+                if (FROZEN_COLUMNS.includes(header)) {
+                    cell.classList.add('sticky-col', `sticky-col-${index + 1}`);
+                }
+
+                row.appendChild(cell);
+            });
+            tableBody.appendChild(row);
+        });
+    }
+
+    // 3. 處理排序
+    function handleSort(column) {
+        if (sortState.column === column) {
+            sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortState.column = column;
+            sortState.direction = 'desc'; // 預設降冪
+        }
+        renderTable();
+    }
+    
+    function sortData() {
+        const { column, direction } = sortState;
+        if (!column) return;
+
+        playerData.sort((a, b) => {
+            let valA = a[column];
+            let valB = b[column];
+
+            // 嘗試將值轉為數字進行比較
+            const numA = parseFloat(valA);
+            const numB = parseFloat(valB);
+
+            if (!isNaN(numA) && !isNaN(numB)) {
+                valA = numA;
+                valB = numB;
+            }
+
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+
+    // 4. CSV 解析器
+    function parseCSV(text) {
+        const lines = text.trim().split('\n');
+        const headers = lines[0].split(',').map(h => h.trim());
+        const rows = [];
+        for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(',').map(v => v.trim());
+            if (values.length === headers.length) {
+                const rowObject = headers.reduce((obj, header, index) => {
+                    obj[header] = values[index];
+                    return obj;
+                }, {});
+                rows.push(rowObject);
+            }
+        }
+        return rows;
+    }
+
+    // 5. Modal 彈出視窗相關功能
+    const modal = document.getElementById('player-modal');
+    const modalPlayerName = document.getElementById('modal-player-name');
+    const modalPlayerStats = document.getElementById('modal-player-stats');
+    const closeButton = document.querySelector('.close-button');
+
+    function showModal(player) {
+        modalPlayerName.textContent = `${player['姓名']} (#${player['背號']}) - 詳細數據`;
+        modalPlayerStats.innerHTML = ''; // 清空舊資料
+        
+        Object.entries(player).forEach(([key, value]) => {
+            // 不在 modal 中顯示照片 URL
+            if (key === '照片') return;
+            
+            const p = document.createElement('p');
+            p.innerHTML = `<strong>${key}:</strong> ${value}`;
+            modalPlayerStats.appendChild(p);
+        });
+        
+        modal.style.display = 'block';
+    }
+
+    function closeModal() {
+        modal.style.display = 'none';
+    }
+
+    closeButton.onclick = closeModal;
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            closeModal();
+        }
+    }
+    
+    // 程式進入點
+    fetchData();
 });
 </script>
 
