@@ -85,16 +85,16 @@
 </div>
 
 <script src="//cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script> 
 
 <script>
     // =======================================================
     // #程式碼核心設定
     // =======================================================
-    // 您的數據連結 (請確認已設為公開檢視)
+    // 您的數據連結
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/13ZRWxv4aLHLzmSzYEgVttZJIyn3ztmO1g-hL3jfXeNg/export?format=csv&gid=0';
     
-    // 欄位名稱 (已根據您的 Google Sheet 圖片確認)
+    // 欄位名稱
     const JERSEY_COLUMN = '背號';       
     const PHOTO_URL_COLUMN = '照片'; 
     const NAME_COLUMN = '姓名';         
@@ -162,7 +162,7 @@
         renderTable(allPlayerStats);
     }
 
-    // --- ( renderTable 函數：處理排序、凍結、高亮、OPS 渲染 ) ---
+    // --- ( renderTable 函數 ) ---
     function renderTable(data) {
         const tableBody = document.getElementById('stats-table-body');
 
