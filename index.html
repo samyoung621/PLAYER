@@ -57,7 +57,7 @@
 
 <div class="container-fluid my-5">
     <h1 class="text-center mb-4">
-        <img src="ferrmosharks_logo.png" alt="福爾摩鯊隊徽" class="header-logo">
+        <img src="ferrmosharks_logo.png" alt="福爾摩鯊隊徽" class="header-logo"> 
         福爾摩鯊聯隊打擊排行榜
     </h1> 
     
@@ -118,8 +118,7 @@
     let sortDirection = 'asc';
     let maxValues = {}; 
 
-    // --- ( processData, sortData, renderTable, Modal 函數維持不變，已包含所有功能邏輯 ) ---
-    
+    // --- ( processData, sortData, Modal 函數維持不變) ---
     function processData(data) {
         if (data.length === 0) return data;
         data.forEach(player => {
