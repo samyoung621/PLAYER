@@ -20,11 +20,11 @@
             margin-right: 15px;
         }
 
-        /* ============== 凍結欄位 CSS (最終優化區) ============== */
+        /* ============== 凍結欄位 CSS (關鍵修正區) ============== */
         
         /* 增加表格穩定性 */
         #stats-table {
-            border-collapse: separate; /* 提高 sticky 穩定性 */
+            border-collapse: separate; 
             border-spacing: 0;
         }
         
@@ -36,25 +36,40 @@
         /* 垂直凍結 (表頭列): 讓整個表頭列固定在頂部 */
         #stats-table thead th {
             position: sticky;
-            top: 0 !important; /* ⚡️ 關鍵修正：讓表頭固定在視窗頂部 */
+            top: 0 !important; /* ⚡️ 關鍵修正：確保 top: 0 絕對生效 */
             background-color: #e9ecef !important; /* 統一表頭背景色 */
             color: #333;
-            z-index: 100; /* 確保表頭在所有數據列之上 */
+            z-index: 100; /* 確保表頭在所有數據列之上 (更高優先級) */
         }
 
-        /* 水平凍結已移除 */
-        
-        /* ============== 高亮顯示與樣式 ============== */
+        /* 水平凍結 (前三欄) */
+        /* 凍結列的 TD (數據行) */
+        #stats-table td.sticky-col-1, #stats-table td.sticky-col-2, #stats-table td.sticky-col-3 {
+            z-index: 3; /* 確保凍結的數據欄位在滾動內容之上 */
+        }
+        /* 凍結列的 TH (表頭) */
+        #stats-table th.sticky-col-1, #stats-table th.sticky-col-2, #stats-table th.sticky-col-3 { 
+            z-index: 101; /* 確保凍結的表頭欄位在所有元素之上 */
+        }
+
+        .sticky-col-1 { left: 0; min-width: 60px; } 
+        .sticky-col-2 { left: 60px; min-width: 70px; } 
+        .sticky-col-3 { left: 130px; min-width: 150px; }
+
+        /* ============== 高亮顯示 (顏色統一) ============== */
+        /* 儲存格背景色高亮 */
         .highlight { 
             background-color: #ffc107 !important; /* 強制使用黃色，覆蓋 Bootstrap 條紋色 */
             font-weight: bold; 
             color: #333; 
         }
 
+        /* 照片樣式高亮新增 */
         .best-player-photo {
             border: 3px solid #dc3545 !important; /* 強制使用紅色邊框 */
             box-shadow: 0 0 8px rgba(220, 53, 69, 0.9);
         }
+        /* 排序圖示 */
         .sortable { cursor: pointer; }
     </style>
 </head>
@@ -116,7 +131,7 @@
     const OBP_COLUMN = '上壘率';          
     const SLG_COLUMN = '長打率';           
     const OPS_COLUMN_NAME = 'OPS'; 
-    const ALL_HEADER_COLUMNS = [PHOTO_URL_COLUMN, JERSEY_COLUMN, NAME_COLUMN]; 
+    const FROZEN_COLUMNS = [PHOTO_URL_COLUMN, JERSEY_COLUMN, NAME_COLUMN]; 
     
     let allPlayerStats = []; 
     let sortColumn = NAME_COLUMN;
@@ -132,7 +147,7 @@
             player[OPS_COLUMN_NAME] = (obp + slg).toFixed(3); 
         });
         const numericalHeaders = Object.keys(data[0]).filter(header => {
-            return !ALL_HEADER_COLUMNS.includes(header) && header.toUpperCase() !== 'TOTAL' && header !== OBP_COLUMN && header !== SLG_COLUMN && !isNaN(parseFloat(data[0][header]));
+            return !FROZEN_COLUMNS.includes(header) && header.toUpperCase() !== 'TOTAL' && header !== OBP_COLUMN && header !== SLG_COLUMN && !isNaN(parseFloat(data[0][header]));
         });
         numericalHeaders.push(OPS_COLUMN_NAME); 
         maxValues = {};
@@ -167,10 +182,125 @@
         }
 
         let headers = Object.keys(data[0]);
-        headers = headers.filter(h => !ALL_HEADER_COLUMNS.includes(h) && h !== OPS_COLUMN_NAME); 
+        headers = headers.filter(h => !FROZEN_COLUMNS.includes(h) && h !== OPS_COLUMN_NAME); 
         const obpIndex = headers.indexOf(OBP_COLUMN);
         if (obpIndex !== -1) { headers.splice(headers.indexOf(SLG_COLUMN) + 1, 0, OPS_COLUMN_NAME); } else { headers.push(OPS_COLUMN_NAME); }
-        const finalHeaders = [...ALL_HEADER_COLUMNS, ...headers];
+        const finalHeaders = [...FROZEN_COLUMNS, ...headers];
 
         // 1. 動態生成表格標頭
-        document
+        document.querySelector('#stats-table thead tr').innerHTML = '';
+        finalHeaders.forEach((header, index) => {
+            const frozenIndex = FROZEN_COLUMNS.indexOf(header);
+            const isFrozen = frozenIndex !== -1;
+            const isSortable = !isFrozen || header === NAME_COLUMN || !isNaN(parseFloat(data[0][header])); 
+            let thClass = isFrozen ? `sticky-col-${FROZEN_COLUMNS.indexOf(header) + 1}` : '';
+            if (isSortable) { thClass += ' sortable'; }
+            let sortIndicator = '';
+            if (header === sortColumn) { sortIndicator = sortDirection === 'asc' ? ' ▼' : ' ▲'; }
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.className = thClass;
+            th.textContent = header + sortIndicator;
+            th.setAttribute('data-column', header);
+            if (isSortable) {
+                 th.addEventListener('click', () => {
+                    if (sortColumn === header) { sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'; } else { sortColumn = header; sortDirection = 'asc'; }
+                    sortData();
+                });
+            }
+            document.querySelector('#stats-table thead tr').appendChild(th);
+        });
+
+        // 2. 動態生成表格內容
+        let tableRowsHTML = '';
+        data.forEach(player => {
+            let rowHTML = `<tr>`;
+            
+            let isBestPlayerOverall = false;
+            for (const header in maxValues) {
+                if (maxValues.hasOwnProperty(header) && parseFloat(player[header]) === maxValues[header] && maxValues[header] !== 0) {
+                    isBestPlayerOverall = true;
+                    break;
+                }
+            }
+
+            finalHeaders.forEach((header, index) => {
+                const frozenIndex = FROZEN_COLUMNS.indexOf(header);
+                const isFrozen = frozenIndex !== -1;
+                let tdClass = isFrozen ? `sticky-col-${frozenIndex + 1}` : '';
+                let cellContent = player[header] || '';
+
+                if (header === PHOTO_URL_COLUMN) {
+                    // 照片高亮邏輯
+                    const photoUrl = player[header] || 'https://via.placeholder.com/50?text=No+Photo'; 
+                    let photoClass = 'player-photo';
+                    if (isBestPlayerOverall) { photoClass += ' best-player-photo'; }
+                    cellContent = `<img src="${photoUrl}" onerror="this.src='https://via.placeholder.com/50?text=404'" alt="${player[NAME_COLUMN]}" class="${photoClass}">`;
+                } else if (header === NAME_COLUMN) {
+                    cellContent = `<span class="player-name-link" data-bs-toggle="modal" data-bs-target="#playerModal" data-player-name="${player[NAME_COLUMN]}">${player[NAME_COLUMN]}</span>`;
+                }
+
+                // 儲存格高亮邏輯 
+                if (maxValues.hasOwnProperty(header)) {
+                    const value = parseFloat(player[header]);
+                    if (value === maxValues[header] && maxValues[header] !== 0) { tdClass += ' highlight'; }
+                }
+                
+                rowHTML += `<td class="${tdClass}">${cellContent}</td>`;
+            });
+            
+            rowHTML += `</tr>`;
+            tableRowsHTML += rowHTML;
+        });
+
+        tableBody.innerHTML = tableRowsHTML;
+    }
+
+    // --- ( Modal 函數維持不變) ---
+    const playerModal = new bootstrap.Modal(document.getElementById('playerModal'));
+    playerModal._element.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget; 
+        const playerName = button.getAttribute('data-player-name');
+        const playerDetails = allPlayerStats.find(p => p[NAME_COLUMN] === playerName);
+        if (playerDetails) {
+            document.getElementById('modalPlayerName').textContent = playerDetails[NAME_COLUMN];
+            document.getElementById('playerModalLabel').textContent = `${playerDetails[NAME_COLUMN]} - 詳細數據分析`;
+            const modalPhotoUrl = playerDetails[PHOTO_URL_COLUMN] || 'https://via.placeholder.com/250?text=No+Photo';
+            document.getElementById('modalPlayerPhoto').src = modalPhotoUrl;
+            document.getElementById('modalPlayerPhoto').onerror = function() { this.src = 'https://via.placeholder.com/250?text=404+Error'; };
+            const modalStatsBody = document.getElementById('modalPlayerStats');
+            let statsHTML = '';
+            const headers = Object.keys(playerDetails);
+            headers.forEach(header => {
+                if (!FROZEN_COLUMNS.includes(header)) {
+                    statsHTML += `<div class="col-6 mb-2"><strong>${header}:</strong> ${playerDetails[header]}</div>`;
+                }
+            });
+            modalStatsBody.innerHTML = statsHTML;
+        }
+    });
+
+    // --- 主程式：載入並處理數據 (使用 PapaParse) ---
+    Papa.parse(CSV_URL, {
+        download: true, header: true, skipEmptyLines: true, 
+        complete: function(results) {
+            if (results.data && results.data.length > 0 && Object.keys(results.data[0]).length >= 5) {
+                allPlayerStats = results.data.filter(row => row[NAME_COLUMN]); 
+                allPlayerStats = processData(allPlayerStats); 
+                sortData(); 
+            } else {
+                document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗：</strong> 取得資料為空或格式錯誤。</td></tr>`;
+            }
+        },
+        error: function(error) {
+            console.error('數據處理錯誤 (PapaParse):', error);
+            document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger">
+                <strong>數據載入發生嚴重錯誤 (PapaParse)：</strong> ${error.message} <br>
+                **請確認 Google Sheet 的共用權限為「知道連結的使用者皆可檢視」。**
+            </td></tr>`;
+        }
+    });
+</script>
+
+</body>
+</html>
