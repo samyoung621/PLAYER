@@ -20,23 +20,36 @@
             margin-right: 15px;
         }
 
-        /* ============== 凍結欄位與表頭背景修正 ============== */
+        /* ============== 凍結欄位 CSS (關鍵修正區) ============== */
         #stats-table th, #stats-table td { 
             position: sticky; 
-            background-color: white; 
-            z-index: 1; 
+            background-color: white; /* 確保凍結時背景色是白色 */
         }
-        /* [修正] 確保所有表頭 (TH) 背景顏色一致 */
+        
+        /* 垂直凍結 (表頭列): 讓整個表頭列固定在頂部 */
         #stats-table thead th {
-            background-color: #e9ecef !important; /* 統一標頭背景色 */
+            position: sticky;
+            top: 0; /* ⚡️ 關鍵修正：讓表頭固定在視窗頂部 */
+            background-color: #e9ecef !important; /* 統一表頭背景色 */
             color: #333;
+            z-index: 10; /* 確保表頭在所有數據列之上 */
         }
 
-        .sticky-col-1 { left: 0; z-index: 2; min-width: 60px; } 
-        .sticky-col-2 { left: 60px; z-index: 2; min-width: 70px; } 
-        .sticky-col-3 { left: 130px; z-index: 2; min-width: 150px; } 
+        /* 水平凍結 (前三欄) */
+        /* 1. 凍結列的 TH (表頭) */
+        #stats-table th.sticky-col-1, #stats-table th.sticky-col-2, #stats-table th.sticky-col-3 { 
+            z-index: 11; /* 確保凍結的表頭欄位在非凍結表頭之上 */
+        }
+        /* 2. 凍結列的 TD (數據行) */
+        #stats-table td.sticky-col-1, #stats-table td.sticky-col-2, #stats-table td.sticky-col-3 {
+            z-index: 3; /* 確保凍結的數據欄位在滾動內容之上，但在表頭之下 */
+        }
 
-        /* ============== 高亮顯示最終修正 (使用 !important 確保顏色一致) ============== */
+        .sticky-col-1 { left: 0; min-width: 60px; } 
+        .sticky-col-2 { left: 60px; min-width: 70px; } 
+        .sticky-col-3 { left: 130px; min-width: 150px; }
+
+        /* ============== 高亮顯示 (顏色統一) ============== */
         /* 儲存格背景色高亮 */
         .highlight { 
             background-color: #ffc107 !important; /* 強制使用黃色，覆蓋 Bootstrap 條紋色 */
@@ -44,7 +57,7 @@
             color: #333; 
         }
 
-        /* 照片樣式高亮新增 (應用於儲存格內照片) */
+        /* 照片樣式高亮新增 */
         .best-player-photo {
             border: 3px solid #dc3545 !important; /* 強制使用紅色邊框 */
             box-shadow: 0 0 8px rgba(220, 53, 69, 0.9);
@@ -157,7 +170,7 @@
     function renderTable(data) {
         const tableBody = document.getElementById('stats-table-body');
         if (data.length === 0 || Object.keys(data[0]).length < 5) {
-            tableBody.innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據格式錯誤：</strong> 載入的數據為空或欄位數量不足。</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗：</strong> 取得資料為空或格式錯誤。</td></tr>`;
             return;
         }
 
@@ -270,13 +283,13 @@
                 allPlayerStats = processData(allPlayerStats); 
                 sortData(); 
             } else {
-                document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗 (PapaParse)：</strong> 取得資料為空或格式錯誤。</td></tr>`;
+                document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗：</strong> 取得資料為空或格式錯誤。</td></tr>`;
             }
         },
         error: function(error) {
             console.error('數據處理錯誤 (PapaParse):', error);
             document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger">
-                <strong>數據載入發生嚴重錯誤 (PapaParse)：</strong> ${error.message} <br>
+                <strong>數據載入發生嚴重錯誤：</strong> ${error.message} <br>
                 **請確認 Google Sheet 的共用權限為「知道連結的使用者皆可檢視」。**
             </td></tr>`;
         }
