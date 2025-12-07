@@ -20,7 +20,7 @@
             margin-right: 15px;
         }
 
-        /* ============== 凍結欄位 CSS (關鍵修正區) ============== */
+        /* ============== 凍結欄位 CSS (單欄凍結與垂直凍結) ============== */
         
         /* 增加表格穩定性 */
         #stats-table {
@@ -33,43 +33,38 @@
             background-color: white; 
         }
         
-        /* 垂直凍結 (表頭列): 讓整個表頭列固定在頂部 */
+        /* 1. 垂直凍結 (表頭列): 讓整個表頭列固定在頂部 */
         #stats-table thead th {
             position: sticky;
-            top: 0 !important; /* ⚡️ 關鍵修正：確保 top: 0 絕對生效 */
-            background-color: #e9ecef !important; /* 統一表頭背景色 */
+            top: 0 !important; 
+            background-color: #e9ecef !important; 
             color: #333;
-            z-index: 100; /* 確保表頭在所有數據列之上 (更高優先級) */
+            z-index: 100; 
         }
 
-        /* 水平凍結 (前三欄) */
-        /* 凍結列的 TD (數據行) */
-        #stats-table td.sticky-col-1, #stats-table td.sticky-col-2, #stats-table td.sticky-col-3 {
-            z-index: 3; /* 確保凍結的數據欄位在滾動內容之上 */
-        }
+        /* 2. 水平凍結 (第一欄: 照片) */
+        .sticky-col-1 { left: 0; min-width: 60px; } 
+
         /* 凍結列的 TH (表頭) */
-        #stats-table th.sticky-col-1, #stats-table th.sticky-col-2, #stats-table th.sticky-col-3 { 
+        #stats-table th.sticky-col-1 { 
             z-index: 101; /* 確保凍結的表頭欄位在所有元素之上 */
         }
+        /* 凍結列的 TD (數據行) */
+        #stats-table td.sticky-col-1 {
+            z-index: 3; /* 確保凍結的數據欄位在滾動內容之上 */
+        }
 
-        .sticky-col-1 { left: 0; min-width: 60px; } 
-        .sticky-col-2 { left: 60px; min-width: 70px; } 
-        .sticky-col-3 { left: 130px; min-width: 150px; }
-
-        /* ============== 高亮顯示 (顏色統一) ============== */
-        /* 儲存格背景色高亮 */
+        /* ============== 高亮顯示與樣式 ============== */
         .highlight { 
-            background-color: #ffc107 !important; /* 強制使用黃色，覆蓋 Bootstrap 條紋色 */
+            background-color: #ffc107 !important; 
             font-weight: bold; 
             color: #333; 
         }
 
-        /* 照片樣式高亮新增 */
         .best-player-photo {
-            border: 3px solid #dc3545 !important; /* 強制使用紅色邊框 */
+            border: 3px solid #dc3545 !important; 
             box-shadow: 0 0 8px rgba(220, 53, 69, 0.9);
         }
-        /* 排序圖示 */
         .sortable { cursor: pointer; }
     </style>
 </head>
@@ -123,7 +118,7 @@
 <script src="//cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
 <script>
-    // 程式碼核心設定 (維持不變)
+    // 程式碼核心設定 (關鍵：只凍結照片欄位)
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/13ZRWxv4aLHLzmSzYEgVttZJIyn3ztmO1g-hL3jfXeNg/export?format=csv&gid=0';
     const JERSEY_COLUMN = '背號';       
     const PHOTO_URL_COLUMN = '照片'; 
@@ -131,14 +126,17 @@
     const OBP_COLUMN = '上壘率';          
     const SLG_COLUMN = '長打率';           
     const OPS_COLUMN_NAME = 'OPS'; 
-    const FROZEN_COLUMNS = [PHOTO_URL_COLUMN, JERSEY_COLUMN, NAME_COLUMN]; 
+    
+    // **只凍結照片欄位**
+    const FROZEN_COLUMNS = [PHOTO_URL_COLUMN]; 
+    const ALL_OTHER_COLUMNS = [JERSEY_COLUMN, NAME_COLUMN]; // 其他凍結邏輯以外的初始欄位
     
     let allPlayerStats = []; 
     let sortColumn = NAME_COLUMN;
     let sortDirection = 'asc';
     let maxValues = {}; 
 
-    // --- ( processData, sortData, renderTable, Modal 函數維持不變) ---
+    // --- ( processData, sortData 函數維持不變) ---
     function processData(data) {
         if (data.length === 0) return data;
         data.forEach(player => {
@@ -147,7 +145,7 @@
             player[OPS_COLUMN_NAME] = (obp + slg).toFixed(3); 
         });
         const numericalHeaders = Object.keys(data[0]).filter(header => {
-            return !FROZEN_COLUMNS.includes(header) && header.toUpperCase() !== 'TOTAL' && header !== OBP_COLUMN && header !== SLG_COLUMN && !isNaN(parseFloat(data[0][header]));
+            return !FROZEN_COLUMNS.includes(header) && !ALL_OTHER_COLUMNS.includes(header) && header.toUpperCase() !== 'TOTAL' && header !== OBP_COLUMN && header !== SLG_COLUMN && !isNaN(parseFloat(data[0][header]));
         });
         numericalHeaders.push(OPS_COLUMN_NAME); 
         maxValues = {};
@@ -174,6 +172,7 @@
         renderTable(allPlayerStats);
     }
 
+    // --- ( renderTable 函數：核心修正了 TD 類別的邏輯 ) ---
     function renderTable(data) {
         const tableBody = document.getElementById('stats-table-body');
         if (data.length === 0 || Object.keys(data[0]).length < 5) {
@@ -182,19 +181,25 @@
         }
 
         let headers = Object.keys(data[0]);
-        headers = headers.filter(h => !FROZEN_COLUMNS.includes(h) && h !== OPS_COLUMN_NAME); 
+        // 過濾掉核心欄位和 OPS 欄位
+        headers = headers.filter(h => !FROZEN_COLUMNS.includes(h) && !ALL_OTHER_COLUMNS.includes(h) && h !== OPS_COLUMN_NAME); 
         const obpIndex = headers.indexOf(OBP_COLUMN);
         if (obpIndex !== -1) { headers.splice(headers.indexOf(SLG_COLUMN) + 1, 0, OPS_COLUMN_NAME); } else { headers.push(OPS_COLUMN_NAME); }
-        const finalHeaders = [...FROZEN_COLUMNS, ...headers];
+        
+        // 最終欄位順序：照片 -> 背號/姓名 -> 其他數據 -> OPS
+        const finalHeaders = [PHOTO_URL_COLUMN, JERSEY_COLUMN, NAME_COLUMN, ...headers];
 
         // 1. 動態生成表格標頭
         document.querySelector('#stats-table thead tr').innerHTML = '';
         finalHeaders.forEach((header, index) => {
-            const frozenIndex = FROZEN_COLUMNS.indexOf(header);
-            const isFrozen = frozenIndex !== -1;
-            const isSortable = !isFrozen || header === NAME_COLUMN || !isNaN(parseFloat(data[0][header])); 
-            let thClass = isFrozen ? `sticky-col-${FROZEN_COLUMNS.indexOf(header) + 1}` : '';
-            if (isSortable) { thClass += ' sortable'; }
+            const isSortable = header === NAME_COLUMN || !isNaN(parseFloat(data[0][header])); 
+            
+            // 決定是否為凍結欄位 (只有照片是)
+            let thClass = isSortable ? 'sortable' : '';
+            if (header === PHOTO_URL_COLUMN) {
+                thClass += ' sticky-col-1';
+            }
+
             let sortIndicator = '';
             if (header === sortColumn) { sortIndicator = sortDirection === 'asc' ? ' ▼' : ' ▲'; }
             const th = document.createElement('th');
@@ -202,6 +207,7 @@
             th.className = thClass;
             th.textContent = header + sortIndicator;
             th.setAttribute('data-column', header);
+            
             if (isSortable) {
                  th.addEventListener('click', () => {
                     if (sortColumn === header) { sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'; } else { sortColumn = header; sortDirection = 'asc'; }
@@ -225,12 +231,13 @@
             }
 
             finalHeaders.forEach((header, index) => {
-                const frozenIndex = FROZEN_COLUMNS.indexOf(header);
-                const isFrozen = frozenIndex !== -1;
-                let tdClass = isFrozen ? `sticky-col-${frozenIndex + 1}` : '';
+                let tdClass = '';
                 let cellContent = player[header] || '';
 
+                // 決定是否為凍結欄位 (只有照片是)
                 if (header === PHOTO_URL_COLUMN) {
+                    tdClass += ' sticky-col-1';
+                    
                     // 照片高亮邏輯
                     const photoUrl = player[header] || 'https://via.placeholder.com/50?text=No+Photo'; 
                     let photoClass = 'player-photo';
@@ -272,7 +279,7 @@
             let statsHTML = '';
             const headers = Object.keys(playerDetails);
             headers.forEach(header => {
-                if (!FROZEN_COLUMNS.includes(header)) {
+                if (!ALL_OTHER_COLUMNS.includes(header) && header !== PHOTO_URL_COLUMN) {
                     statsHTML += `<div class="col-6 mb-2"><strong>${header}:</strong> ${playerDetails[header]}</div>`;
                 }
             });
