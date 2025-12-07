@@ -20,7 +20,7 @@
             margin-right: 15px;
         }
 
-        /* ============== 凍結欄位 CSS (單欄凍結與垂直凍結) ============== */
+        /* ============== 凍結欄位 CSS (最終優化區) ============== */
         
         /* 增加表格穩定性 */
         #stats-table {
@@ -39,7 +39,7 @@
             top: 0 !important; 
             background-color: #e9ecef !important; 
             color: #333;
-            z-index: 100; 
+            z-index: 100; /* 確保表頭在所有數據列之上 */
         }
 
         /* 2. 水平凍結 (第一欄: 照片) */
@@ -47,24 +47,27 @@
 
         /* 凍結列的 TH (表頭) */
         #stats-table th.sticky-col-1 { 
-            z-index: 101; /* 確保凍結的表頭欄位在所有元素之上 */
+            z-index: 101; /* 確保凍結的表頭欄位在非凍結表頭之上 */
         }
         /* 凍結列的 TD (數據行) */
         #stats-table td.sticky-col-1 {
             z-index: 3; /* 確保凍結的數據欄位在滾動內容之上 */
         }
 
-        /* ============== 高亮顯示與樣式 ============== */
+        /* ============== 高亮顯示 (顏色統一) ============== */
+        /* 儲存格背景色高亮 */
         .highlight { 
-            background-color: #ffc107 !important; 
+            background-color: #ffc107 !important; /* 強制使用黃色，覆蓋 Bootstrap 條紋色 */
             font-weight: bold; 
             color: #333; 
         }
 
+        /* 照片樣式高亮新增 */
         .best-player-photo {
-            border: 3px solid #dc3545 !important; 
+            border: 3px solid #dc3545 !important; /* 強制使用紅色邊框 */
             box-shadow: 0 0 8px rgba(220, 53, 69, 0.9);
         }
+        /* 排序圖示 */
         .sortable { cursor: pointer; }
     </style>
 </head>
@@ -118,7 +121,7 @@
 <script src="//cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
 <script>
-    // 程式碼核心設定 (關鍵：只凍結照片欄位)
+    // 程式碼核心設定
     const CSV_URL = 'https://docs.google.com/spreadsheets/d/13ZRWxv4aLHLzmSzYEgVttZJIyn3ztmO1g-hL3jfXeNg/export?format=csv&gid=0';
     const JERSEY_COLUMN = '背號';       
     const PHOTO_URL_COLUMN = '照片'; 
@@ -127,10 +130,10 @@
     const SLG_COLUMN = '長打率';           
     const OPS_COLUMN_NAME = 'OPS'; 
     
-    // **只凍結照片欄位**
+    // 凍結欄位設定：只有照片欄位需要水平凍結
     const FROZEN_COLUMNS = [PHOTO_URL_COLUMN]; 
-    const ALL_OTHER_COLUMNS = [JERSEY_COLUMN, NAME_COLUMN]; // 其他凍結邏輯以外的初始欄位
-    
+    const ALL_OTHER_COLUMNS = [JERSEY_COLUMN, NAME_COLUMN]; // 其他非凍結但需在開頭顯示的欄位
+
     let allPlayerStats = []; 
     let sortColumn = NAME_COLUMN;
     let sortDirection = 'asc';
@@ -172,7 +175,6 @@
         renderTable(allPlayerStats);
     }
 
-    // --- ( renderTable 函數：核心修正了 TD 類別的邏輯 ) ---
     function renderTable(data) {
         const tableBody = document.getElementById('stats-table-body');
         if (data.length === 0 || Object.keys(data[0]).length < 5) {
@@ -181,7 +183,6 @@
         }
 
         let headers = Object.keys(data[0]);
-        // 過濾掉核心欄位和 OPS 欄位
         headers = headers.filter(h => !FROZEN_COLUMNS.includes(h) && !ALL_OTHER_COLUMNS.includes(h) && h !== OPS_COLUMN_NAME); 
         const obpIndex = headers.indexOf(OBP_COLUMN);
         if (obpIndex !== -1) { headers.splice(headers.indexOf(SLG_COLUMN) + 1, 0, OPS_COLUMN_NAME); } else { headers.push(OPS_COLUMN_NAME); }
