@@ -19,6 +19,11 @@
             vertical-align: middle;
             margin-right: 15px;
         }
+        
+        /* 關鍵修正: 設置 .table-responsive 的父容器為相對定位，以確保 sticky 運作 */
+        .sticky-wrapper {
+            position: relative; 
+        }
 
         /* ============== 凍結欄位 CSS (最終優化區) ============== */
         
@@ -26,11 +31,14 @@
         #stats-table {
             border-collapse: separate; 
             border-spacing: 0;
+            width: 100%; /* 確保表格佔滿父容器，讓滾動條出現 */
         }
         
+        /* 基本 sticky 設定 */
         #stats-table th, #stats-table td { 
             position: sticky; 
             background-color: white; 
+            z-index: 1; /* 基礎 Z-index */
         }
         
         /* 1. 垂直凍結 (表頭列): 讓整個表頭列固定在頂部 */
@@ -45,9 +53,9 @@
         /* 2. 水平凍結 (第一欄: 照片) */
         .sticky-col-1 { left: 0; min-width: 60px; } 
 
-        /* 凍結列的 TH (表頭) */
+        /* 凍結列的 TH (左上角) */
         #stats-table th.sticky-col-1 { 
-            z-index: 101; /* 確保凍結的表頭欄位在非凍結表頭之上 */
+            z-index: 101; /* 確保凍結的左上角單元格在所有元素之上 */
         }
         /* 凍結列的 TD (數據行) */
         #stats-table td.sticky-col-1 {
@@ -79,7 +87,7 @@
         福爾摩鯊聯隊打擊排行榜
     </h1> 
     
-    <div class="table-responsive">
+    <div class="table-responsive sticky-wrapper"> 
         <table class="table table-striped table-hover align-middle" id="stats-table"> 
             <thead><tr></tr></thead>
             <tbody id="stats-table-body">
@@ -132,7 +140,7 @@
     
     // 凍結欄位設定：只有照片欄位需要水平凍結
     const FROZEN_COLUMNS = [PHOTO_URL_COLUMN]; 
-    const ALL_OTHER_COLUMNS = [JERSEY_COLUMN, NAME_COLUMN]; // 其他非凍結但需在開頭顯示的欄位
+    const ALL_OTHER_COLUMNS = [JERSEY_COLUMN, NAME_COLUMN]; 
 
     let allPlayerStats = []; 
     let sortColumn = NAME_COLUMN;
