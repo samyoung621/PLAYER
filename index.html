@@ -29,11 +29,6 @@
             margin-top: 0 !important;
         }
         
-        /* 關鍵修正：確保 table-responsive 不會干擾垂直 sticky */
-        .table-responsive {
-            overflow-y: visible; /* 允許垂直 sticky 滾動到父級容器 (body) */
-        }
-
         /* 基本 sticky 設定 */
         #stats-table th, #stats-table td { 
             position: sticky; 
@@ -65,14 +60,14 @@
         /* ============== 高亮顯示 (顏色統一) ============== */
         /* 儲存格背景色高亮 */
         .highlight { 
-            background-color: #ffc107 !important; 
+            background-color: #ffc107 !important; /* 強制使用黃色，覆蓋 Bootstrap 條紋色 */
             font-weight: bold; 
             color: #333; 
         }
 
         /* 照片樣式高亮新增 */
         .best-player-photo {
-            border: 3px solid #dc3545 !important; 
+            border: 3px solid #dc3545 !important; /* 強制使用紅色邊框 */
             box-shadow: 0 0 8px rgba(220, 53, 69, 0.9);
         }
         /* 排序圖示 */
@@ -288,4 +283,35 @@
             let statsHTML = '';
             const headers = Object.keys(playerDetails);
             headers.forEach(header => {
-                if (!ALL_OTHER_COLUMNS.
+                if (!ALL_OTHER_COLUMNS.includes(header) && header !== PHOTO_URL_COLUMN) {
+                    statsHTML += `<div class="col-6 mb-2"><strong>${header}:</strong> ${playerDetails[header]}</div>`;
+                }
+            });
+            modalStatsBody.innerHTML = statsHTML;
+        }
+    });
+
+    // --- 主程式：載入並處理數據 (使用 PapaParse) ---
+    Papa.parse(CSV_URL, {
+        download: true, header: true, skipEmptyLines: true, 
+        complete: function(results) {
+            if (results.data && results.data.length > 0 && Object.keys(results.data[0]).length >= 5) {
+                allPlayerStats = results.data.filter(row => row[NAME_COLUMN]); 
+                allPlayerStats = processData(allPlayerStats); 
+                sortData(); 
+            } else {
+                document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗：</strong> 取得資料為空或格式錯誤。</td></tr>`;
+            }
+        },
+        error: function(error) {
+            console.error('數據處理錯誤 (PapaParse):', error);
+            document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger">
+                <strong>數據載入發生嚴重錯誤 (PapaParse)：</strong> ${error.message} <br>
+                **請確認 Google Sheet 的共用權限為「知道連結的使用者皆可檢視」。**
+            </td></tr>`;
+        }
+    });
+</script>
+
+</body>
+</html>
