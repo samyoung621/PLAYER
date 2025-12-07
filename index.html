@@ -6,16 +6,6 @@
     <title>福爾摩鯊聯隊打擊排行榜</title> 
     <link href="//cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* ============== 最終修正：移除可能導致 sticky 失敗的頂部邊距 ============== */
-        body {
-            /* 關鍵修正：確保 body 頂部無邊距干擾 sticky top: 0 */
-            margin-top: 0 !important; 
-        }
-        h1 {
-            /* 關鍵修正：確保 H1 頂部邊距不會將表格推開 */
-            margin-top: 0 !important;
-        }
-
         /* 確保所有單元格內容置中對齊 */
         #stats-table th, #stats-table td { text-align: center; }
         .player-photo { width: 50px; height: 50px; object-fit: cover; border-radius: 50%; }
@@ -36,6 +26,7 @@
         #stats-table {
             border-collapse: separate; 
             border-spacing: 0;
+            margin-top: 0 !important;
         }
         
         /* 基本 sticky 設定 */
@@ -49,7 +40,7 @@
         #stats-table thead th {
             position: sticky;
             top: 0 !important; /* ⚡️ 關鍵修正：讓表頭固定在視窗頂部 */
-            background-color: #e9ecef !important; /* 統一表頭背景色 */
+            background-color: #e9ecef !important; 
             color: #333;
             z-index: 100; /* 確保表頭在所有數據列之上 */
         }
@@ -151,7 +142,7 @@
     let sortDirection = 'asc';
     let maxValues = {}; 
 
-    // --- ( processData, sortData 函數維持不變) ---
+    // --- ( processData, sortData, renderTable, Modal 函數維持不變) ---
     function processData(data) {
         if (data.length === 0) return data;
         data.forEach(player => {
@@ -309,4 +300,18 @@
                 allPlayerStats = processData(allPlayerStats); 
                 sortData(); 
             } else {
-                document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗：</strong> 取得資料為空或格式錯誤。</td>
+                document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗：</strong> 取得資料為空或格式錯誤。</td></tr>`;
+            }
+        },
+        error: function(error) {
+            console.error('數據處理錯誤 (PapaParse):', error);
+            document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger">
+                <strong>數據載入發生嚴重錯誤：</strong> ${error.message} <br>
+                **請確認 Google Sheet 的共用權限為「知道連結的使用者皆可檢視」。**
+            </td></tr>`;
+        }
+    });
+</script>
+
+</body>
+</html>
