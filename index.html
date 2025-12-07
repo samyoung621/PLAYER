@@ -142,7 +142,7 @@
     let sortDirection = 'asc';
     let maxValues = {}; 
 
-    // --- ( processData, sortData 函數維持不變) ---
+    // --- ( processData, sortData, renderTable, Modal 函數維持不變) ---
     function processData(data) {
         if (data.length === 0) return data;
         data.forEach(player => {
@@ -306,7 +306,7 @@
         error: function(error) {
             console.error('數據處理錯誤 (PapaParse):', error);
             document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger">
-                <strong>數據載入發生嚴重錯誤 (PapaParse)：</strong> ${error.message} <br>
+                <strong>數據載入發生嚴重錯誤：</strong> ${error.message} <br>
                 **請確認 Google Sheet 的共用權限為「知道連結的使用者皆可檢視」。**
             </td></tr>`;
         }
