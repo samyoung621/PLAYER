@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福爾摩鯊聯隊打擊排行榜</title> 
+    <link href="//cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* 確保所有單元格內容置中對齊 */
+        #stats-table th, #stats-table td { text-align: center; }
+        .player-photo { width: 50px; height: 50px; object-fit: cover; border-radius: 50%; }
+        .player-name-link { cursor: pointer; font-weight: bold; color: #0d6efd; }
+        .player-name-link:hover { text-decoration: underline; }
+        #modalPlayerPhoto { border: 5px solid #0d6efd; }
+        
+        /* 隊徽圖示樣式 */
+        .header-logo {
+            height: 40px; 
+            vertical-align: middle;
+            margin-right: 15px;
+        }
+
+        /* ============== 凍結欄位 CSS (最終優化區) ============== */
+        
+        /* 增加表格穩定性 */
+        #stats-table {
+            border-collapse: separate; 
+            border-spacing: 0;
+            margin-top: 0 !important;
+        }
+        
+        /* 基本 sticky 設定 */
+        #stats-table th, #stats-table td { 
+            position: sticky; 
+            background-color: white; 
+            z-index: 1; /* 基礎 Z-index */
+        }
+        
+        /* 1. 垂直凍結 (表頭列): 讓整個表頭列固定在頂部 */
+        #stats-table thead th {
+            position: sticky;
+            top: 0 !important; /* ⚡️ 關鍵修正：讓表頭固定在視窗頂部 */
+            background-color: #e9ecef !important; 
+            color: #333;
+            z-index: 100; /* 確保表頭在所有數據列之上 */
+        }
+
+        /* 2. 水平凍結 (第一欄: 照片) */
+        .sticky-col-1 { left: 0; min-width: 60px; } 
+
+        /* 凍結列的 TH (左上角) */
+        #stats-table th.sticky-col-1 { 
+            z-index: 101; /* 確保凍結的左上角單元格在所有元素之上 */
+        }
+        /* 凍結列的 TD (數據行) */
+        #stats-table td.sticky-col-1 {
+            z-index: 3; /* 確保凍結的數據欄位在滾動內容之上 */
+        }
+
+        /* ============== 高亮顯示 (顏色統一) ============== */
+        /* 儲存格背景色高亮 */
+        .highlight { 
+            background-color: #ffc107 !important; /* 強制使用黃色，覆蓋 Bootstrap 條紋色 */
+            font-weight: bold; 
+            color: #333; 
+        }
+
+        /* 照片樣式高亮新增 */
+        .best-player-photo {
+            border: 3px solid #dc3545 !important; /* 強制使用紅色邊框 */
+            box-shadow: 0 0 8px rgba(220, 53, 69, 0.9);
+        }
+        /* 排序圖示 */
+        .sortable { cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid my-5">
+    <h1 class="text-center mb-4">
+        <img src="ferrmosharks_logo.jpg" alt="福爾摩鯊隊徽" class="header-logo"> 
+        福爾摩鯊聯隊打擊排行榜
+    </h1> 
+    
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle" id="stats-table"> 
+            <thead><tr></tr></thead>
+            <tbody id="stats-table-body">
+                <tr><td colspan="100" class="text-center text-muted">正在載入數據，請稍候...</td></tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <p class="text-end text-muted mt-3">數據來源：Google Sheet CSV</p>
+</div>
+
+<div class="modal fade" id="playerModal" tabindex="-1" aria-labelledby="playerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="playerModalLabel">球員詳細資料</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <img id="modalPlayerPhoto" src="" alt="球員個人照片" class="img-fluid rounded-circle mb-3" style="max-height: 250px; width: auto;">
+                        <h4 id="modalPlayerName"></h4>
+                    </div>
+                    <div class="col-md-8">
+                        <h5 class="mb-3 border-bottom pb-2">完整數據一覽</h5>
+                        <div id="modalPlayerStats" class="row"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="//cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+<script>
+    // 程式碼核心設定 (維持不變)
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/13ZRWxv4aLHLzmSzYEgVttZJIyn3ztmO1g-hL3jfXeNg/export?format=csv&gid=0';
+    const JERSEY_COLUMN = '背號';       
+    const PHOTO_URL_COLUMN = '照片'; 
+    const NAME_COLUMN = '姓名';         
+    const OBP_COLUMN = '上壘率';          
+    const SLG_COLUMN = '長打率';           
+    const OPS_COLUMN_NAME = 'OPS'; 
+    
+    // 凍結欄位設定：只有照片欄位需要水平凍結
+    const FROZEN_COLUMNS = [PHOTO_URL_COLUMN]; 
+    const ALL_OTHER_COLUMNS = [JERSEY_COLUMN, NAME_COLUMN]; // 其他非凍結但需在開頭顯示的欄位
+
+    let allPlayerStats = []; 
+    let sortColumn = NAME_COLUMN;
+    let sortDirection = 'asc';
+    let maxValues = {}; 
+
+    // --- ( processData, sortData, renderTable, Modal 函數維持不變) ---
+    function processData(data) {
+        if (data.length === 0) return data;
+        data.forEach(player => {
+            const obp = parseFloat(player[OBP_COLUMN]) || 0;
+            const slg = parseFloat(player[SLG_COLUMN]) || 0;
+            player[OPS_COLUMN_NAME] = (obp + slg).toFixed(3); 
+        });
+        const numericalHeaders = Object.keys(data[0]).filter(header => {
+            return !FROZEN_COLUMNS.includes(header) && !ALL_OTHER_COLUMNS.includes(header) && header.toUpperCase() !== 'TOTAL' && header !== OBP_COLUMN && header !== SLG_COLUMN && !isNaN(parseFloat(data[0][header]));
+        });
+        numericalHeaders.push(OPS_COLUMN_NAME); 
+        maxValues = {};
+        numericalHeaders.forEach(header => {
+            let maxVal = -Infinity;
+            data.forEach(player => {
+                const value = parseFloat(player[header]) || 0;
+                if (value > maxVal) { maxVal = value; }
+            });
+            maxValues[header] = maxVal > 0 ? maxVal : 0; 
+        });
+        return data;
+    }
+
+    function sortData() {
+        allPlayerStats.sort((a, b) => {
+            const aVal = a[sortColumn];
+            const bVal = b[sortColumn];
+            let comparison = 0;
+            const isNumeric = !isNaN(parseFloat(aVal)) && !isNaN(parseFloat(bVal));
+            if (isNumeric) { comparison = (parseFloat(aVal) || 0) - (parseFloat(bVal) || 0); } else { comparison = aVal.localeCompare(bVal, 'zh-TW', {sensitivity: 'base'}); }
+            return sortDirection === 'asc' ? comparison : comparison * -1;
+        });
+        renderTable(allPlayerStats);
+    }
+
+    function renderTable(data) {
+        const tableBody = document.getElementById('stats-table-body');
+        if (data.length === 0 || Object.keys(data[0]).length < 5) {
+            tableBody.innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗：</strong> 取得資料為空或格式錯誤。</td></tr>`;
+            return;
+        }
+
+        let headers = Object.keys(data[0]);
+        headers = headers.filter(h => !FROZEN_COLUMNS.includes(h) && !ALL_OTHER_COLUMNS.includes(h) && h !== OPS_COLUMN_NAME); 
+        const obpIndex = headers.indexOf(OBP_COLUMN);
+        if (obpIndex !== -1) { headers.splice(headers.indexOf(SLG_COLUMN) + 1, 0, OPS_COLUMN_NAME); } else { headers.push(OPS_COLUMN_NAME); }
+        
+        // 最終欄位順序：照片 -> 背號/姓名 -> 其他數據 -> OPS
+        const finalHeaders = [PHOTO_URL_COLUMN, JERSEY_COLUMN, NAME_COLUMN, ...headers];
+
+        // 1. 動態生成表格標頭
+        document.querySelector('#stats-table thead tr').innerHTML = '';
+        finalHeaders.forEach((header, index) => {
+            const isSortable = header === NAME_COLUMN || !isNaN(parseFloat(data[0][header])); 
+            
+            // 決定是否為凍結欄位 (只有照片是)
+            let thClass = isSortable ? 'sortable' : '';
+            if (header === PHOTO_URL_COLUMN) {
+                thClass += ' sticky-col-1';
+            }
+
+            let sortIndicator = '';
+            if (header === sortColumn) { sortIndicator = sortDirection === 'asc' ? ' ▼' : ' ▲'; }
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.className = thClass;
+            th.textContent = header + sortIndicator;
+            th.setAttribute('data-column', header);
+            
+            if (isSortable) {
+                 th.addEventListener('click', () => {
+                    if (sortColumn === header) { sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'; } else { sortColumn = header; sortDirection = 'asc'; }
+                    sortData();
+                });
+            }
+            document.querySelector('#stats-table thead tr').appendChild(th);
+        });
+
+        // 2. 動態生成表格內容
+        let tableRowsHTML = '';
+        data.forEach(player => {
+            let rowHTML = `<tr>`;
+            
+            let isBestPlayerOverall = false;
+            for (const header in maxValues) {
+                if (maxValues.hasOwnProperty(header) && parseFloat(player[header]) === maxValues[header] && maxValues[header] !== 0) {
+                    isBestPlayerOverall = true;
+                    break;
+                }
+            }
+
+            finalHeaders.forEach((header, index) => {
+                let tdClass = '';
+                let cellContent = player[header] || '';
+
+                // 決定是否為凍結欄位 (只有照片是)
+                if (header === PHOTO_URL_COLUMN) {
+                    tdClass += ' sticky-col-1';
+                    
+                    // 照片高亮邏輯
+                    const photoUrl = player[header] || 'https://via.placeholder.com/50?text=No+Photo'; 
+                    let photoClass = 'player-photo';
+                    if (isBestPlayerOverall) { photoClass += ' best-player-photo'; }
+                    cellContent = `<img src="${photoUrl}" onerror="this.src='https://via.placeholder.com/50?text=404'" alt="${player[NAME_COLUMN]}" class="${photoClass}">`;
+                } else if (header === NAME_COLUMN) {
+                    cellContent = `<span class="player-name-link" data-bs-toggle="modal" data-bs-target="#playerModal" data-player-name="${player[NAME_COLUMN]}">${player[NAME_COLUMN]}</span>`;
+                }
+
+                // 儲存格高亮邏輯 
+                if (maxValues.hasOwnProperty(header)) {
+                    const value = parseFloat(player[header]);
+                    if (value === maxValues[header] && maxValues[header] !== 0) { tdClass += ' highlight'; }
+                }
+                
+                rowHTML += `<td class="${tdClass}">${cellContent}</td>`;
+            });
+            
+            rowHTML += `</tr>`;
+            tableRowsHTML += rowHTML;
+        });
+
+        tableBody.innerHTML = tableRowsHTML;
+    }
+
+    // --- ( Modal 函數維持不變) ---
+    const playerModal = new bootstrap.Modal(document.getElementById('playerModal'));
+    playerModal._element.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget; 
+        const playerName = button.getAttribute('data-player-name');
+        const playerDetails = allPlayerStats.find(p => p[NAME_COLUMN] === playerName);
+        if (playerDetails) {
+            document.getElementById('modalPlayerName').textContent = playerDetails[NAME_COLUMN];
+            document.getElementById('playerModalLabel').textContent = `${playerDetails[NAME_COLUMN]} - 詳細數據分析`;
+            const modalPhotoUrl = playerDetails[PHOTO_URL_COLUMN] || 'https://via.placeholder.com/250?text=No+Photo';
+            document.getElementById('modalPlayerPhoto').src = modalPhotoUrl;
+            document.getElementById('modalPlayerPhoto').onerror = function() { this.src = 'https://via.placeholder.com/250?text=404+Error'; };
+            const modalStatsBody = document.getElementById('modalPlayerStats');
+            let statsHTML = '';
+            const headers = Object.keys(playerDetails);
+            headers.forEach(header => {
+                if (!ALL_OTHER_COLUMNS.includes(header) && header !== PHOTO_URL_COLUMN) {
+                    statsHTML += `<div class="col-6 mb-2"><strong>${header}:</strong> ${playerDetails[header]}</div>`;
+                }
+            });
+            modalStatsBody.innerHTML = statsHTML;
+        }
+    });
+
+    // --- 主程式：載入並處理數據 (使用 PapaParse) ---
+    Papa.parse(CSV_URL, {
+        download: true, header: true, skipEmptyLines: true, 
+        complete: function(results) {
+            if (results.data && results.data.length > 0 && Object.keys(results.data[0]).length >= 5) {
+                allPlayerStats = results.data.filter(row => row[NAME_COLUMN]); 
+                allPlayerStats = processData(allPlayerStats); 
+                sortData(); 
+            } else {
+                document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗：</strong> 取得資料為空或格式錯誤。</td></tr>`;
+            }
+        },
+        error: function(error) {
+            console.error('數據處理錯誤 (PapaParse):', error);
+            document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger">
+                <strong>數據載入發生嚴重錯誤：</strong> ${error.message} <br>
+                **請確認 Google Sheet 的共用權限為「知道連結的使用者皆可檢視」。**
+            </td></tr>`;
+        }
+    });
+</script>
+
+</body>
+</html>

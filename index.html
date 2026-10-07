@@ -1,316 +1,319 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>福爾摩鯊聯隊打擊排行榜</title> 
-    <link href="//cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        /* 確保所有單元格內容置中對齊 */
-        #stats-table th, #stats-table td { text-align: center; }
-        .player-photo { width: 50px; height: 50px; object-fit: cover; border-radius: 50%; }
-        .player-name-link { cursor: pointer; font-weight: bold; color: #0d6efd; }
-        .player-name-link:hover { text-decoration: underline; }
-        #modalPlayerPhoto { border: 5px solid #0d6efd; }
-        
-        /* 隊徽圖示樣式 */
-        .header-logo {
-            height: 40px; 
-            vertical-align: middle;
-            margin-right: 15px;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>福爾摩鯊打擊成績</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: scoreboard header → league leaders strip → roster cards → full stat sheet (sortable) */
+:root{
+  --bg:#eff3f4; --surface:#ffffff; --ink:#132230; --muted:#56656f; --line:#d3dde1;
+  --field:#1d5a73; --clay:#167d7f; --chalk:#f7f5f0; --board:#0f2a44; --board-ink:#e6eef2; --gold:#5ec4c6;
+  --display:"Barlow Condensed","Noto Sans TC",system-ui,sans-serif;
+  --body:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e161d; --surface:#16222b; --ink:#e4ecef; --muted:#93a4ae; --line:#26353f;
+  --field:#3f8fae; --clay:#4fc2c4; --chalk:#1a2127; --board:#08182a; --board-ink:#e6eef2; --gold:#6fd3d5; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e161d; --surface:#16222b; --ink:#e4ecef; --muted:#93a4ae; --line:#26353f;
+  --field:#3f8fae; --clay:#4fc2c4; --chalk:#1a2127; --board:#08182a; --board-ink:#e6eef2; --gold:#6fd3d5; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;margin:0}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:20px;padding-block:0 56px}
+.num{font-family:var(--display);font-variant-numeric:tabular-nums}
 
-        /* ============== 凍結欄位 CSS (最終優化區) ============== */
-        
-        /* 增加表格穩定性 */
-        #stats-table {
-            border-collapse: separate; 
-            border-spacing: 0;
-            margin-top: 0 !important;
-        }
-        
-        /* 基本 sticky 設定 */
-        #stats-table th, #stats-table td { 
-            position: sticky; 
-            background-color: white; 
-            z-index: 1; /* 基礎 Z-index */
-        }
-        
-        /* 1. 垂直凍結 (表頭列): 讓整個表頭列固定在頂部 */
-        #stats-table thead th {
-            position: sticky;
-            top: 0 !important; /* ⚡️ 關鍵修正：讓表頭固定在視窗頂部 */
-            background-color: #e9ecef !important; 
-            color: #333;
-            z-index: 100; /* 確保表頭在所有數據列之上 */
-        }
+/* scoreboard header */
+.brand{display:flex;align-items:center;gap:16px}
+.logo{height:64px;width:auto;max-width:40vw;object-fit:contain;border-radius:6px}
+.board{background:var(--board);color:var(--board-ink);padding-block:28px 22px}
+.board .wrap{padding-block:0;display:flex;flex-wrap:wrap;gap:18px 32px;align-items:flex-end;justify-content:space-between}
+.board h1{margin:0;font-weight:900;font-size:clamp(28px,5vw,44px);letter-spacing:.02em;line-height:1.15;text-wrap:balance}
+.board .eyebrow{font-family:var(--display);letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-size:14px;font-weight:600}
+.totals{display:flex;flex-wrap:wrap;gap:4px}
+.totals div{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);padding:6px 12px;min-width:68px;text-align:center}
+.totals b{display:block;font-family:var(--display);font-size:28px;font-weight:700;line-height:1;color:#fff;font-variant-numeric:tabular-nums}
+.totals span{font-size:12px;color:#b9b3a3;letter-spacing:.08em}
+.status{font-size:13px;color:var(--muted);margin:14px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block}
+.dot.live{background:#3fae6b}.dot.snap{background:var(--gold)}
 
-        /* 2. 水平凍結 (第一欄: 照片) */
-        .sticky-col-1 { left: 0; min-width: 60px; } 
+h2{font-size:20px;margin:40px 0 14px;font-weight:900;display:flex;align-items:baseline;gap:10px}
+h2 small{font-family:var(--display);font-weight:600;color:var(--clay);letter-spacing:.14em;font-size:13px;text-transform:uppercase}
 
-        /* 凍結列的 TH (左上角) */
-        #stats-table th.sticky-col-1 { 
-            z-index: 101; /* 確保凍結的左上角單元格在所有元素之上 */
-        }
-        /* 凍結列的 TD (數據行) */
-        #stats-table td.sticky-col-1 {
-            z-index: 3; /* 確保凍結的數據欄位在滾動內容之上 */
-        }
+/* leaders */
+.leaders{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.leader{background:var(--surface);border:1px solid var(--line);padding:14px 16px}
+.leader h3{margin:0 0 8px;font-size:13px;color:var(--muted);font-weight:500;letter-spacing:.06em}
+.leader ol{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.leader li{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline}
+.leader li:first-child .v{color:var(--clay);font-size:26px}
+.leader .v{font-family:var(--display);font-weight:700;font-size:19px;font-variant-numeric:tabular-nums}
+.leader .n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.leader .n i{font-style:normal;color:var(--muted);font-family:var(--display);margin-right:6px}
+.empty{color:var(--muted);font-size:13px}
 
-        /* ============== 高亮顯示 (顏色統一) ============== */
-        /* 儲存格背景色高亮 */
-        .highlight { 
-            background-color: #ffc107 !important; /* 強制使用黃色，覆蓋 Bootstrap 條紋色 */
-            font-weight: bold; 
-            color: #333; 
-        }
+/* roster */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.toolbar input,.toolbar select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:7px 10px;border-radius:4px}
+.toolbar input{flex:1;min-width:0;max-width:280px}
+.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);cursor:pointer;text-align:left;padding:0;font:inherit;color:inherit;display:flex;flex-direction:column;transition:transform .15s,border-color .15s}
+.card:hover{transform:translateY(-2px);border-color:var(--clay)}
+.card:focus-visible{outline:2px solid var(--clay);outline-offset:2px}
+.photo{position:relative;aspect-ratio:4/5;max-width:100%;background:var(--field);overflow:hidden}
+.photo img{width:100%;height:100%;object-fit:cover;display:block}
+.photo .ph{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--display);font-size:64px;font-weight:700;color:rgba(255,255,255,.85)}
+.photo .jersey{position:absolute;left:0;bottom:0;background:#0f2a44;color:#fff;font-family:var(--display);font-weight:700;font-size:22px;line-height:1;padding:6px 10px 5px}
+.card .meta{padding:10px 12px 12px;display:grid;gap:6px}
+.card .name{font-weight:700;font-size:16px}
+.slash{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;font-size:11px;color:var(--muted)}
+.slash b{display:block;font-family:var(--display);font-size:18px;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 
-        /* 照片樣式高亮新增 */
-        .best-player-photo {
-            border: 3px solid #dc3545 !important; /* 強制使用紅色邊框 */
-            box-shadow: 0 0 8px rgba(220, 53, 69, 0.9);
-        }
-        /* 排序圖示 */
-        .sortable { cursor: pointer; }
-    </style>
+/* table */
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;min-width:900px;font-size:14px}
+th,td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{font-weight:500;color:var(--muted);font-size:12.5px;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--surface)}
+th:hover{color:var(--ink)}
+th.on{color:var(--clay)}
+th.on::after{content:attr(data-dir);margin-left:3px}
+td{font-family:var(--display);font-size:17px;font-variant-numeric:tabular-nums}
+td.l,th.l{text-align:left}
+td.pname{font-family:var(--body);font-size:14px;font-weight:500}
+tbody tr:hover{background:color-mix(in srgb,var(--clay) 7%,transparent)}
+tfoot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:0}
+.rate{color:var(--field)}
+
+.note{font-size:13px;color:var(--muted);margin-top:12px;max-width:68ch}
+
+/* detail */
+.overlay{position:fixed;inset:0;background:rgba(10,15,12,.55);display:grid;place-items:center;padding:16px;z-index:10}
+.panel{background:var(--surface);color:var(--ink);width:min(560px,100%);max-height:90vh;overflow:auto;display:grid;grid-template-columns:170px 1fr}
+.panel .photo{aspect-ratio:auto;min-height:220px}
+.panel .info{padding:18px 20px;min-width:0}
+.panel h3{margin:0;font-size:24px;font-weight:900}
+.panel .close{float:right;background:none;border:0;font-size:24px;line-height:1;cursor:pointer;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 12px;margin-top:14px}
+.grid div{border-top:1px solid var(--line);padding-top:4px}
+.grid span{font-size:12px;color:var(--muted);display:block}
+.grid b{font-family:var(--display);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+@media (max-width:520px){.panel{grid-template-columns:1fr}.panel .photo{min-height:200px}}
+@media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
+</style>
+
 </head>
 <body>
-
-<div class="container-fluid my-5">
-    <h1 class="text-center mb-4">
-        <img src="ferrmosharks_logo.jpg" alt="福爾摩鯊隊徽" class="header-logo"> 
-        福爾摩鯊聯隊打擊排行榜
-    </h1> 
-    
-    <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle" id="stats-table"> 
-            <thead><tr></tr></thead>
-            <tbody id="stats-table-body">
-                <tr><td colspan="100" class="text-center text-muted">正在載入數據，請稍候...</td></tr>
-            </tbody>
-        </table>
+<header class="board">
+  <div class="wrap">
+    <div class="brand">
+      <img id="logo" class="logo" alt="福爾摩鯊隊徽" hidden>
+      <div>
+      <div class="eyebrow">Formosharks · Batting Records 2026</div>
+      <h1>福爾摩鯊 打擊成績</h1>
+      </div>
     </div>
-    
-    <p class="text-end text-muted mt-3">數據來源：Google Sheet CSV</p>
-</div>
+    <div class="totals" id="totals"></div>
+  </div>
+</header>
 
-<div class="modal fade" id="playerModal" tabindex="-1" aria-labelledby="playerModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="playerModalLabel">球員詳細資料</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-md-4 text-center">
-                        <img id="modalPlayerPhoto" src="" alt="球員個人照片" class="img-fluid rounded-circle mb-3" style="max-height: 250px; width: auto;">
-                        <h4 id="modalPlayerName"></h4>
-                    </div>
-                    <div class="col-md-8">
-                        <h5 class="mb-3 border-bottom pb-2">完整數據一覽</h5>
-                        <div id="modalPlayerStats" class="row"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
-            </div>
-        </div>
-    </div>
-</div>
+<main class="wrap">
+  <p class="status" id="status"><span class="dot"></span>讀取資料中…</p>
 
-<script src="//cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <h2>打擊排行 <small>Leaders</small></h2>
+  <div class="leaders" id="leaders"></div>
+
+  <h2>球員名單 <small>Roster</small></h2>
+  <div class="toolbar">
+    <input id="q" type="search" placeholder="搜尋姓名或背號" aria-label="搜尋球員">
+    <select id="sortRoster" aria-label="名單排序">
+      <option value="order">依表單順序</option>
+      <option value="num">依背號</option>
+      <option value="avg">依打擊率</option>
+      <option value="h">依安打數</option>
+      <option value="rbi">依打點</option>
+    </select>
+  </div>
+  <div class="roster" id="roster"></div>
+
+  <h2>完整打擊數據 <small>Stat Sheet</small></h2>
+  <div class="tablewrap"><table id="tbl"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+  <p class="note">打擊率＝安打 ÷ 打數；上壘率＝(安打＋四壞球) ÷ (打數＋四壞球)；長打率＝壘打數 ÷ 打數。失誤上壘不計入上壘率。打擊排行門檻為打席數達球隊最多者的一半以上。點欄位標題可排序。</p>
+</main>
+
+<div class="overlay" id="overlay" hidden></div>
 
 <script>
-    // 程式碼核心設定 (維持不變)
-    const CSV_URL = 'https://docs.google.com/spreadsheets/d/13ZRWxv4aLHLzmSzYEgVttZJIyn3ztmO1g-hL3jfXeNg/export?format=csv&gid=0';
-    const JERSEY_COLUMN = '背號';       
-    const PHOTO_URL_COLUMN = '照片'; 
-    const NAME_COLUMN = '姓名';         
-    const OBP_COLUMN = '上壘率';          
-    const SLG_COLUMN = '長打率';           
-    const OPS_COLUMN_NAME = 'OPS'; 
-    
-    // 凍結欄位設定：只有照片欄位需要水平凍結
-    const FROZEN_COLUMNS = [PHOTO_URL_COLUMN]; 
-    const ALL_OTHER_COLUMNS = [JERSEY_COLUMN, NAME_COLUMN]; // 其他非凍結但需在開頭顯示的欄位
+// 資料來源：Google 試算表發佈的 CSV。網站上線後會即時讀取最新成績。
+// 隊徽：放進 repo 後把檔名填在這裡（例如 "logo.png"），留空則不顯示
+const LOGO_URL = "";
+if (LOGO_URL) { const lg = document.getElementById("logo"); lg.src = LOGO_URL; lg.hidden = false; lg.onerror = () => lg.hidden = true; }
 
-    let allPlayerStats = []; 
-    let sortColumn = NAME_COLUMN;
-    let sortDirection = 'asc';
-    let maxValues = {}; 
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQG-3TToygmpU9ISirmKzyTHEtFdvP9OUpFRSpB-kzPQCNYlkywx1XEHOqcVwhOdibujEhds8sl1Sim/pub?output=csv";
 
-    // --- ( processData, sortData, renderTable, Modal 函數維持不變) ---
-    function processData(data) {
-        if (data.length === 0) return data;
-        data.forEach(player => {
-            const obp = parseFloat(player[OBP_COLUMN]) || 0;
-            const slg = parseFloat(player[SLG_COLUMN]) || 0;
-            player[OPS_COLUMN_NAME] = (obp + slg).toFixed(3); 
-        });
-        const numericalHeaders = Object.keys(data[0]).filter(header => {
-            return !FROZEN_COLUMNS.includes(header) && !ALL_OTHER_COLUMNS.includes(header) && header.toUpperCase() !== 'TOTAL' && header !== OBP_COLUMN && header !== SLG_COLUMN && !isNaN(parseFloat(data[0][header]));
-        });
-        numericalHeaders.push(OPS_COLUMN_NAME); 
-        maxValues = {};
-        numericalHeaders.forEach(header => {
-            let maxVal = -Infinity;
-            data.forEach(player => {
-                const value = parseFloat(player[header]) || 0;
-                if (value > maxVal) { maxVal = value; }
-            });
-            maxValues[header] = maxVal > 0 ? maxVal : 0; 
-        });
-        return data;
-    }
+// 2026-10-07 的資料快照，讀不到線上資料時使用
+const SNAPSHOT = `背號,照片,姓名,打席,打數,安打數,打擊率,打點,一壘安打,二壘安打,三壘安打,全壘打,失誤上壘,三振,四壞球,上壘率,長打率
+24,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/59.jpg?raw=true,小周
+27,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/27.jpg?raw=true,峰榮
+55,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/55.jpg?raw=true,小花
+1,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/1.jpg?raw=true,嘉桓
+77,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/77.jpg?raw=true,舜子
+10,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/10.JPG?raw=true,柏誠
+19,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/19.JPG?raw=true,光義
+41,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/41.jpg?raw=true,逸宏
+58,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/58.jpg?raw=true,王大
+3,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/3.jpg?raw=true,致濠
+39,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/39.jpg?raw=true,懷恩
+82,https://raw.githubusercontent.com/samyoung621/PLAYER/14c9f8b9a21f8bdb93c03e4442acc426cb82eb45/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/82.jpg,正憲
+5,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/5.jpg?raw=true,與倫
+99,https://raw.githubusercontent.com/samyoung621/PLAYER/14c9f8b9a21f8bdb93c03e4442acc426cb82eb45/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/99.jpg,良全
+17,,盟堯
+22,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/22.jpg?raw=true,亦凌
+44,,阿賢
+28,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/28.jpg?raw=true,証然
+55,https://raw.githubusercontent.com/samyoung621/PLAYER/14c9f8b9a21f8bdb93c03e4442acc426cb82eb45/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/55.jpg,威吾
+51,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/51.jpg?raw=true,Allen
+0,,庭邑
+0,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/98.JPG?raw=true,宇辰
+0,https://github.com/samyoung621/PLAYER/blob/main/photos/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/18.jpg?raw=true,晉麟
+Total,,,,0,0,#DIV/0!,0,0,0,0,0,,0,0,#DIV/0!,#DIV/0!`;
 
-    function sortData() {
-        allPlayerStats.sort((a, b) => {
-            const aVal = a[sortColumn];
-            const bVal = b[sortColumn];
-            let comparison = 0;
-            const isNumeric = !isNaN(parseFloat(aVal)) && !isNaN(parseFloat(bVal));
-            if (isNumeric) { comparison = (parseFloat(aVal) || 0) - (parseFloat(bVal) || 0); } else { comparison = aVal.localeCompare(bVal, 'zh-TW', {sensitivity: 'base'}); }
-            return sortDirection === 'asc' ? comparison : comparison * -1;
-        });
-        renderTable(allPlayerStats);
-    }
+function parseCSV(text){
+  const rows=[];let row=[],f="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===','){row.push(f);f=""}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(f);rows.push(row);row=[];f=""}
+    else f+=c}
+  if(f!==""||row.length){row.push(f);rows.push(row)}
+  return rows.filter(r=>r.some(x=>x.trim()!==""));
+}
+const n=v=>{const x=parseFloat(String(v??"").replace(/,/g,""));return isFinite(x)?x:0};
+const fmt3=v=>v==null?"—":(v>=1?v.toFixed(3):v.toFixed(3).replace(/^0/,""));
 
-    function renderTable(data) {
-        const tableBody = document.getElementById('stats-table-body');
-        if (data.length === 0 || Object.keys(data[0]).length < 5) {
-            tableBody.innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗：</strong> 取得資料為空或格式錯誤。</td></tr>`;
-            return;
-        }
+function toPlayers(rows){
+  const head=rows[0].map(h=>h.trim()), idx=k=>head.indexOf(k);
+  const get=(r,k)=>idx(k)>=0?(r[idx(k)]??"").trim():"";
+  return rows.slice(1).filter(r=>(r[0]||"").trim().toLowerCase()!=="total"&&get(r,"姓名")).map((r,i)=>{
+    const p={order:i,num:get(r,"背號"),photo:get(r,"照片"),name:get(r,"姓名"),
+      pa:n(get(r,"打席")),ab:n(get(r,"打數")),rbi:n(get(r,"打點")),
+      s:n(get(r,"一壘安打")),d:n(get(r,"二壘安打")),t:n(get(r,"三壘安打")),hr:n(get(r,"全壘打")),
+      roe:n(get(r,"失誤上壘")),so:n(get(r,"三振")),bb:n(get(r,"四壞球"))};
+    const hRaw=get(r,"安打數"); p.h=hRaw!==""?n(hRaw):p.s+p.d+p.t+p.hr;
+    return calc(p);
+  });
+}
+function calc(p){
+  p.tb=p.s+2*p.d+3*p.t+4*p.hr;
+  p.avg=p.ab?p.h/p.ab:null;
+  p.obp=(p.ab+p.bb)?(p.h+p.bb)/(p.ab+p.bb):null;
+  p.slg=p.ab?p.tb/p.ab:null;
+  p.ops=(p.obp!=null&&p.slg!=null)?p.obp+p.slg:null;
+  return p;
+}
 
-        let headers = Object.keys(data[0]);
-        headers = headers.filter(h => !FROZEN_COLUMNS.includes(h) && !ALL_OTHER_COLUMNS.includes(h) && h !== OPS_COLUMN_NAME); 
-        const obpIndex = headers.indexOf(OBP_COLUMN);
-        if (obpIndex !== -1) { headers.splice(headers.indexOf(SLG_COLUMN) + 1, 0, OPS_COLUMN_NAME); } else { headers.push(OPS_COLUMN_NAME); }
-        
-        // 最終欄位順序：照片 -> 背號/姓名 -> 其他數據 -> OPS
-        const finalHeaders = [PHOTO_URL_COLUMN, JERSEY_COLUMN, NAME_COLUMN, ...headers];
+let PLAYERS=[];
+const el=id=>document.getElementById(id);
+function h(tag,attrs={},...kids){const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs)){if(k==="class")e.className=v;else if(k==="text")e.textContent=v;else e.setAttribute(k,v)}kids.flat().forEach(k=>k!=null&&e.append(k));return e}
 
-        // 1. 動態生成表格標頭
-        document.querySelector('#stats-table thead tr').innerHTML = '';
-        finalHeaders.forEach((header, index) => {
-            const isSortable = header === NAME_COLUMN || !isNaN(parseFloat(data[0][header])); 
-            
-            // 決定是否為凍結欄位 (只有照片是)
-            let thClass = isSortable ? 'sortable' : '';
-            if (header === PHOTO_URL_COLUMN) {
-                thClass += ' sticky-col-1';
-            }
+function photoEl(p){
+  const box=h("div",{class:"photo"});
+  const ph=h("div",{class:"ph",text:p.name.slice(0,1)});box.append(ph);
+  if(p.photo){const img=h("img",{alt:p.name,loading:"lazy",referrerpolicy:"no-referrer"});
+    img.onerror=()=>img.remove();img.src=p.photo;box.append(img)}
+  box.append(h("div",{class:"jersey",text:"#"+(p.num||"—")}));
+  return box;
+}
 
-            let sortIndicator = '';
-            if (header === sortColumn) { sortIndicator = sortDirection === 'asc' ? ' ▼' : ' ▲'; }
-            const th = document.createElement('th');
-            th.scope = 'col';
-            th.className = thClass;
-            th.textContent = header + sortIndicator;
-            th.setAttribute('data-column', header);
-            
-            if (isSortable) {
-                 th.addEventListener('click', () => {
-                    if (sortColumn === header) { sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'; } else { sortColumn = header; sortDirection = 'asc'; }
-                    sortData();
-                });
-            }
-            document.querySelector('#stats-table thead tr').appendChild(th);
-        });
+function renderTotals(){
+  const T=calc(PLAYERS.reduce((a,p)=>{for(const k of["pa","ab","h","rbi","s","d","t","hr","roe","so","bb"])a[k]+=p[k];return a},
+    {pa:0,ab:0,h:0,rbi:0,s:0,d:0,t:0,hr:0,roe:0,so:0,bb:0}));
+  el("totals").replaceChildren(...[["球員",PLAYERS.length],["打席",T.pa],["安打",T.h],["全壘打",T.hr],["打擊率",fmt3(T.avg)]]
+    .map(([k,v])=>h("div",{},h("b",{text:v}),h("span",{text:k}))));
+  return T;
+}
 
-        // 2. 動態生成表格內容
-        let tableRowsHTML = '';
-        data.forEach(player => {
-            let rowHTML = `<tr>`;
-            
-            let isBestPlayerOverall = false;
-            for (const header in maxValues) {
-                if (maxValues.hasOwnProperty(header) && parseFloat(player[header]) === maxValues[header] && maxValues[header] !== 0) {
-                    isBestPlayerOverall = true;
-                    break;
-                }
-            }
+function renderLeaders(){
+  const maxPA=Math.max(0,...PLAYERS.map(p=>p.pa)), qual=PLAYERS.filter(p=>p.pa>0&&p.pa>=maxPA/2);
+  const boards=[["打擊率","avg",qual,fmt3],["上壘率","obp",qual,fmt3],["安打","h",PLAYERS,v=>v],["打點","rbi",PLAYERS,v=>v],["全壘打","hr",PLAYERS,v=>v],["長打率","slg",qual,fmt3]];
+  el("leaders").replaceChildren(...boards.map(([title,key,pool,f])=>{
+    const top=pool.filter(p=>p[key]!=null&&p[key]>0).sort((a,b)=>b[key]-a[key]).slice(0,3);
+    return h("div",{class:"leader"},h("h3",{text:title}),
+      top.length?h("ol",{},top.map(p=>h("li",{},h("span",{class:"n"},h("i",{text:"#"+p.num}),p.name),h("span",{class:"v",text:f(p[key])}))))
+               :h("p",{class:"empty",text:"尚無比賽紀錄"}));
+  }));
+}
 
-            finalHeaders.forEach((header, index) => {
-                let tdClass = '';
-                let cellContent = player[header] || '';
+function renderRoster(){
+  const q=el("q").value.trim().toLowerCase(), s=el("sortRoster").value;
+  let list=PLAYERS.filter(p=>!q||p.name.toLowerCase().includes(q)||p.num===q);
+  const by={order:(a,b)=>a.order-b.order,num:(a,b)=>n(a.num)-n(b.num),
+    avg:(a,b)=>(b.avg??-1)-(a.avg??-1),h:(a,b)=>b.h-a.h,rbi:(a,b)=>b.rbi-a.rbi};
+  list.sort(by[s]);
+  el("roster").replaceChildren(...list.map(p=>{
+    const b=h("button",{class:"card",type:"button","aria-label":`${p.name} #${p.num} 詳細數據`},photoEl(p),
+      h("div",{class:"meta"},h("div",{class:"name",text:p.name}),
+        h("div",{class:"slash"},...[["打擊率",p.avg],["上壘率",p.obp],["長打率",p.slg]].map(([k,v])=>h("div",{},h("b",{text:fmt3(v)}),k)))));
+    b.onclick=()=>openDetail(p);return b;
+  }));
+  if(!list.length)el("roster").append(h("p",{class:"empty",text:"找不到符合的球員"}));
+}
 
-                // 決定是否為凍結欄位 (只有照片是)
-                if (header === PHOTO_URL_COLUMN) {
-                    tdClass += ' sticky-col-1';
-                    
-                    // 照片高亮邏輯
-                    const photoUrl = player[header] || 'https://via.placeholder.com/50?text=No+Photo'; 
-                    let photoClass = 'player-photo';
-                    if (isBestPlayerOverall) { photoClass += ' best-player-photo'; }
-                    cellContent = `<img src="${photoUrl}" onerror="this.src='https://via.placeholder.com/50?text=404'" alt="${player[NAME_COLUMN]}" class="${photoClass}">`;
-                } else if (header === NAME_COLUMN) {
-                    cellContent = `<span class="player-name-link" data-bs-toggle="modal" data-bs-target="#playerModal" data-player-name="${player[NAME_COLUMN]}">${player[NAME_COLUMN]}</span>`;
-                }
+const COLS=[["num","背號","l"],["name","姓名","l"],["pa","打席"],["ab","打數"],["h","安打"],["s","一安"],["d","二安"],["t","三安"],["hr","全壘打"],["rbi","打點"],["bb","四壞"],["so","三振"],["roe","失誤上壘"],["avg","打擊率",,1],["obp","上壘率",,1],["slg","長打率",,1],["ops","OPS",,1]];
+let sortKey="order",sortDir=-1;
+function cell(p,[k,,cls,rate]){
+  const v=p[k];const td=h("td",{class:[cls,rate&&"rate",k==="name"&&"pname"].filter(Boolean).join(" ")});
+  td.textContent=rate?fmt3(v):(k==="num"?"#"+v:v);return td;
+}
+function renderTable(T){
+  const t=el("tbl");
+  t.tHead.replaceChildren(h("tr",{},COLS.map(c=>{const th=h("th",{class:(c[2]||"")+(sortKey===c[0]?" on":""),"data-dir":sortDir>0?"▲":"▼",scope:"col",tabindex:"0",text:c[1]});
+    const go=()=>{if(sortKey===c[0])sortDir*=-1;else{sortKey=c[0];sortDir=c[2]?1:-1}renderTable(T)};
+    th.onclick=go;th.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}};return th})));
+  const rows=[...PLAYERS].sort((a,b)=>{if(sortKey==="order")return a.order-b.order;
+    let x=a[sortKey],y=b[sortKey];if(sortKey==="num"){x=n(x);y=n(y)}
+    if(x==null)return 1;if(y==null)return -1;
+    return (typeof x==="string"?x.localeCompare(y,"zh-Hant"):x-y)*sortDir});
+  t.tBodies[0].replaceChildren(...rows.map(p=>{const tr=h("tr",{},COLS.map(c=>cell(p,c)));tr.style.cursor="pointer";tr.onclick=()=>openDetail(p);return tr}));
+  t.tFoot.replaceChildren(h("tr",{},COLS.map((c,i)=>i===0?h("td",{class:"l pname",text:"全隊"}):i===1?h("td",{}):cell(T,c))));
+}
 
-                // 儲存格高亮邏輯 
-                if (maxValues.hasOwnProperty(header)) {
-                    const value = parseFloat(player[header]);
-                    if (value === maxValues[header] && maxValues[header] !== 0) { tdClass += ' highlight'; }
-                }
-                
-                rowHTML += `<td class="${tdClass}">${cellContent}</td>`;
-            });
-            
-            rowHTML += `</tr>`;
-            tableRowsHTML += rowHTML;
-        });
+function openDetail(p){
+  const o=el("overlay");
+  const close=h("button",{class:"close",type:"button","aria-label":"關閉",text:"×"});
+  const stats=[["打席",p.pa],["打數",p.ab],["安打",p.h],["一壘安打",p.s],["二壘安打",p.d],["三壘安打",p.t],["全壘打",p.hr],["打點",p.rbi],["壘打數",p.tb],["四壞球",p.bb],["三振",p.so],["失誤上壘",p.roe],["打擊率",fmt3(p.avg)],["上壘率",fmt3(p.obp)],["長打率",fmt3(p.slg)]];
+  o.replaceChildren(h("div",{class:"panel",role:"dialog","aria-modal":"true","aria-label":p.name},photoEl(p),
+    h("div",{class:"info"},close,h("h3",{text:p.name}),h("div",{class:"num",style:"color:var(--muted)",text:"#"+p.num}),
+      h("div",{class:"grid"},stats.map(([k,v])=>h("div",{},h("span",{text:k}),h("b",{text:v})))))));
+  o.hidden=false;close.focus();
+  const shut=()=>{o.hidden=true;document.removeEventListener("keydown",esc)};
+  const esc=e=>{if(e.key==="Escape")shut()};
+  close.onclick=shut;o.onclick=e=>{if(e.target===o)shut()};document.addEventListener("keydown",esc);
+}
 
-        tableBody.innerHTML = tableRowsHTML;
-    }
+function renderAll(){const T=renderTotals();renderLeaders();renderRoster();renderTable(T)}
+el("q").oninput=renderRoster;el("sortRoster").onchange=renderRoster;
 
-    // --- ( Modal 函數維持不變) ---
-    const playerModal = new bootstrap.Modal(document.getElementById('playerModal'));
-    playerModal._element.addEventListener('show.bs.modal', function (event) {
-        const button = event.relatedTarget; 
-        const playerName = button.getAttribute('data-player-name');
-        const playerDetails = allPlayerStats.find(p => p[NAME_COLUMN] === playerName);
-        if (playerDetails) {
-            document.getElementById('modalPlayerName').textContent = playerDetails[NAME_COLUMN];
-            document.getElementById('playerModalLabel').textContent = `${playerDetails[NAME_COLUMN]} - 詳細數據分析`;
-            const modalPhotoUrl = playerDetails[PHOTO_URL_COLUMN] || 'https://via.placeholder.com/250?text=No+Photo';
-            document.getElementById('modalPlayerPhoto').src = modalPhotoUrl;
-            document.getElementById('modalPlayerPhoto').onerror = function() { this.src = 'https://via.placeholder.com/250?text=404+Error'; };
-            const modalStatsBody = document.getElementById('modalPlayerStats');
-            let statsHTML = '';
-            const headers = Object.keys(playerDetails);
-            headers.forEach(header => {
-                if (!ALL_OTHER_COLUMNS.includes(header) && header !== PHOTO_URL_COLUMN) {
-                    statsHTML += `<div class="col-6 mb-2"><strong>${header}:</strong> ${playerDetails[header]}</div>`;
-                }
-            });
-            modalStatsBody.innerHTML = statsHTML;
-        }
-    });
+function setStatus(kind,text){el("status").replaceChildren(h("span",{class:"dot "+kind}),text)}
 
-    // --- 主程式：載入並處理數據 (使用 PapaParse) ---
-    Papa.parse(CSV_URL, {
-        download: true, header: true, skipEmptyLines: true, 
-        complete: function(results) {
-            if (results.data && results.data.length > 0 && Object.keys(results.data[0]).length >= 5) {
-                allPlayerStats = results.data.filter(row => row[NAME_COLUMN]); 
-                allPlayerStats = processData(allPlayerStats); 
-                sortData(); 
-            } else {
-                document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger"><strong>數據載入失敗：</strong> 取得資料為空或格式錯誤。</td></tr>`;
-            }
-        },
-        error: function(error) {
-            console.error('數據處理錯誤 (PapaParse):', error);
-            document.getElementById('stats-table-body').innerHTML = `<tr><td colspan="100" class="text-danger text-center alert alert-danger">
-                <strong>數據載入發生嚴重錯誤：</strong> ${error.message} <br>
-                **請確認 Google Sheet 的共用權限為「知道連結的使用者皆可檢視」。**
-            </td></tr>`;
-        }
-    });
+(async()=>{
+  PLAYERS=toPlayers(parseCSV(SNAPSHOT));renderAll();
+  setStatus("snap","顯示 2026/10/7 的資料快照，正在連線試算表…");
+  try{
+    const r=await fetch(CSV_URL+"&t="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw new Error(r.status);
+    const rows=parseCSV(await r.text());
+    if(rows.length<2||!rows[0].includes("姓名"))throw new Error("format");
+    PLAYERS=toPlayers(rows);renderAll();
+    setStatus("live","已同步試算表最新資料 · "+new Date().toLocaleString("zh-TW",{hour12:false}));
+  }catch(e){
+    setStatus("snap","目前顯示 2026/10/7 的資料快照（此頁面無法連線試算表，網站上線後會自動讀取最新成績）");
+  }
+})();
 </script>
 
 </body>
