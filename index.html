@@ -92,6 +92,27 @@ tbody tr:hover{background:color-mix(in srgb,var(--clay) 7%,transparent)}
 tfoot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:0}
 .rate{color:var(--field)}
 
+.scopebar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin-top:14px}
+.scopebar label{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.scopebar select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:6px 10px;border-radius:4px;max-width:70vw}
+.recordlink{font-size:13px;color:var(--clay);text-decoration:none;border:1px solid var(--clay);padding:5px 12px;border-radius:999px}
+.recordlink:hover{background:var(--clay);color:#fff}
+.feed{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line)}
+.feed li{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.feed li:last-child{border-bottom:0}
+.feed li.new{animation:flash 2.4s ease-out}
+@keyframes flash{from{background:color-mix(in srgb,var(--gold) 28%,transparent)}to{background:transparent}}
+.feed .when{font-family:var(--display);font-size:15px;color:var(--muted);line-height:1.2}
+.feed .when b{display:block;color:var(--ink);font-size:17px}
+.feed .who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feed .who i{font-style:normal;font-family:var(--display);color:var(--muted);margin-right:6px}
+.feed .who small{color:var(--muted);margin-left:8px}
+.chip{font-size:13px;padding:3px 10px;border-radius:999px;white-space:nowrap;font-weight:500}
+.chip.hit{background:var(--clay);color:#fff}
+.chip.on{background:color-mix(in srgb,var(--field) 18%,transparent);color:var(--field)}
+.chip.out{background:color-mix(in srgb,var(--muted) 16%,transparent);color:var(--muted)}
+.chip em{font-style:normal;margin-left:6px;opacity:.85}
+@media (prefers-reduced-motion:reduce){.feed li.new{animation:none}}
 .note{font-size:13px;color:var(--muted);margin-top:12px;max-width:68ch}
 
 /* detail */
@@ -126,6 +147,17 @@ tfoot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:0}
 
 <main class="wrap">
   <p class="status" id="status"><span class="dot"></span>讀取資料中…</p>
+  <div class="scopebar" id="scopebar" hidden>
+    <label for="scope">成績範圍
+      <select id="scope"><option value="">全季累計</option></select>
+    </label>
+    <a class="recordlink" href="record.html">開啟記錄台 →</a>
+  </div>
+
+  <section id="liveSec" hidden>
+    <h2>即時動態 <small>Live</small></h2>
+    <ol class="feed" id="feed"></ol>
+  </section>
 
   <h2>打擊排行 <small>Leaders</small></h2>
   <div class="leaders" id="leaders"></div>
@@ -145,11 +177,13 @@ tfoot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:0}
 
   <h2>完整打擊數據 <small>Stat Sheet</small></h2>
   <div class="tablewrap"><table id="tbl"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
-  <p class="note">打擊率＝安打 ÷ 打數；上壘率＝(安打＋四壞球) ÷ (打數＋四壞球)；長打率＝壘打數 ÷ 打數。失誤上壘不計入上壘率。打擊排行門檻為打席數達球隊最多者的一半以上。點欄位標題可排序。</p>
+  <p class="note">打擊率＝安打 ÷ 打數；上壘率＝(安打＋四壞球＋觸身球) ÷ (打數＋四壞球＋觸身球＋高飛犧牲打)；長打率＝壘打數 ÷ 打數。失誤上壘不計入上壘率。打擊排行門檻為打席數達球隊最多者的一半以上。點欄位標題可排序。</p>
 </main>
 
 <div class="overlay" id="overlay" hidden></div>
 
+<script src="config.js"></script>
+<script src="stats.js"></script>
 <script>
 // 資料來源：Google 試算表發佈的 CSV。網站上線後會即時讀取最新成績。
 // 隊徽：放進 repo 後把檔名填在這裡（例如 "logo.png"），留空則不顯示
@@ -214,7 +248,8 @@ function toPlayers(rows){
 function calc(p){
   p.tb=p.s+2*p.d+3*p.t+4*p.hr;
   p.avg=p.ab?p.h/p.ab:null;
-  p.obp=(p.ab+p.bb)?(p.h+p.bb)/(p.ab+p.bb):null;
+  const hbp=p.hbp||0,sf=p.sf||0;
+  p.obp=(p.ab+p.bb+hbp+sf)?(p.h+p.bb+hbp)/(p.ab+p.bb+hbp+sf):null;
   p.slg=p.ab?p.tb/p.ab:null;
   p.ops=(p.obp!=null&&p.slg!=null)?p.obp+p.slg:null;
   return p;
@@ -235,8 +270,8 @@ function photoEl(p){
 }
 
 function renderTotals(){
-  const T=calc(PLAYERS.reduce((a,p)=>{for(const k of["pa","ab","h","rbi","s","d","t","hr","roe","so","bb"])a[k]+=p[k];return a},
-    {pa:0,ab:0,h:0,rbi:0,s:0,d:0,t:0,hr:0,roe:0,so:0,bb:0}));
+  const T=calc(PLAYERS.reduce((a,p)=>{for(const k of["pa","ab","h","rbi","s","d","t","hr","roe","so","bb","hbp","sf"])a[k]+=(p[k]||0);return a},
+    {pa:0,ab:0,h:0,rbi:0,s:0,d:0,t:0,hr:0,roe:0,so:0,bb:0,hbp:0,sf:0}));
   el("totals").replaceChildren(...[["球員",PLAYERS.length],["打席",T.pa],["安打",T.h],["全壘打",T.hr],["打擊率",fmt3(T.avg)]]
     .map(([k,v])=>h("div",{},h("b",{text:v}),h("span",{text:k}))));
   return T;
@@ -305,8 +340,59 @@ el("q").oninput=renderRoster;el("sortRoster").onchange=renderRoster;
 
 function setStatus(kind,text){el("status").replaceChildren(h("span",{class:"dot "+kind}),text)}
 
+// ---------- 即時資料（Apps Script API） ----------
+const CFG=window.FS_CONFIG||{};
+let API={roster:[],log:[]},seenIds=null;
+const pad=x=>String(x).padStart(2,"0");
+const gameLabel=g=>{const[d,o]=g.split("|");const dd=d?d.replace(/^\d{4}-0?(\d+)-0?(\d+)$/,"$1/$2"):"";return (dd||"未填日期")+(o?" vs "+o:"")};
+
+function buildFromApi(){
+  const scope=el("scope").value;
+  const log=scope?API.log.filter(r=>FS.gameKey(r)===scope):API.log;
+  const t=FS.tally(log);
+  PLAYERS=API.roster.map((r,i)=>calc(Object.assign({order:i,num:r.num,photo:r.photo,name:r.name},t[r.name]||FS.blank())));
+  renderAll();renderFeed(log);
+}
+function renderScopes(){
+  const sel=el("scope"),cur=sel.value;
+  const games=[...new Set(API.log.map(FS.gameKey))].sort().reverse();
+  sel.replaceChildren(h("option",{value:"",text:"全季累計"}),...games.map(g=>h("option",{value:g,text:"單場："+gameLabel(g)})));
+  sel.value=games.includes(cur)?cur:"";
+}
+function renderFeed(log){
+  const items=[...log].sort((a,b)=>String(b.ts).localeCompare(String(a.ts))).slice(0,8);
+  el("liveSec").hidden=!items.length;
+  el("feed").replaceChildren(...items.map(r=>{
+    const def=FS.BY_LABEL[r.result]||{kind:"out"};const d=new Date(r.ts);
+    const li=h("li",{},
+      h("div",{class:"when"},h("b",{text:r.inning?r.inning+"局":"—"}),isNaN(d)?"":pad(d.getHours())+":"+pad(d.getMinutes())),
+      h("div",{class:"who"},h("i",{text:"#"+r.num}),r.name,r.opp?h("small",{text:"vs "+r.opp}):null),
+      h("span",{class:"chip "+def.kind},r.result,r.rbi>0?h("em",{text:r.rbi+"分打點"}):null));
+    if(seenIds&&!seenIds.has(r.id))li.classList.add("new");
+    return li;
+  }));
+  seenIds=new Set(API.log.map(r=>r.id));
+}
+async function loadApi(){
+  const r=await fetch(CFG.API_URL+(CFG.API_URL.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"});
+  if(!r.ok)throw new Error(r.status);
+  const j=await r.json();if(!j.ok)throw new Error(j.error||"api");
+  API=j;renderScopes();buildFromApi();
+  setStatus("live","即時連線中，每 "+(CFG.REFRESH_SECONDS||15)+" 秒自動更新 · 最後更新 "+new Date().toLocaleTimeString("zh-TW",{hour12:false}));
+}
+el("scope").onchange=buildFromApi;
+
 (async()=>{
   PLAYERS=toPlayers(parseCSV(SNAPSHOT));renderAll();
+  if(CFG.API_URL){
+    el("scopebar").hidden=false;
+    setStatus("snap","正在連線即時記錄…");
+    const tick=async()=>{try{await loadApi()}catch(e){setStatus("snap","暫時無法連線即時記錄，稍後自動重試")}};
+    await tick();
+    setInterval(()=>{if(!document.hidden)tick()},(CFG.REFRESH_SECONDS||15)*1000);
+    document.addEventListener("visibilitychange",()=>{if(!document.hidden)tick()});
+    return;
+  }
   setStatus("snap","顯示 2026/10/7 的資料快照，正在連線試算表…");
   try{
     const r=await fetch(CSV_URL+"&t="+Date.now(),{cache:"no-store"});
@@ -316,7 +402,7 @@ function setStatus(kind,text){el("status").replaceChildren(h("span",{class:"dot 
     PLAYERS=toPlayers(rows);renderAll();
     setStatus("live","已同步試算表最新資料 · "+new Date().toLocaleString("zh-TW",{hour12:false}));
   }catch(e){
-    setStatus("snap","目前顯示 2026/10/7 的資料快照（此頁面無法連線試算表，網站上線後會自動讀取最新成績）");
+    setStatus("snap","目前顯示 2026/10/7 的資料快照（無法連線試算表）");
   }
 })();
 </script>

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f2a44">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>福爾摩鯊記錄台</title>
+<link rel="icon" href="logo.jpg">
+<link rel="apple-touch-icon" href="logo.jpg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: sticky navy header → game card → batter grid → result pad → RBI → this-game log; fixed submit bar at bottom */
+:root{
+  --bg:#eff3f4; --surface:#ffffff; --ink:#132230; --muted:#56656f; --line:#d3dde1;
+  --navy:#0f2a44; --teal:#167d7f; --teal-soft:#d9eeee; --hit:#167d7f; --on:#1d5a73; --out:#56656f; --warn:#b06a10; --bad:#b3372f;
+  --display:"Barlow Condensed","Noto Sans TC",system-ui,sans-serif;
+  --body:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e161d; --surface:#16222b; --ink:#e4ecef; --muted:#93a4ae; --line:#26353f;
+  --navy:#08182a; --teal:#4fc2c4; --teal-soft:#16393d; --hit:#2d9a9c; --on:#3f8fae; --out:#6f818c; --warn:#e2a24a; --bad:#e0685f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e161d; --surface:#16222b; --ink:#e4ecef; --muted:#93a4ae; --line:#26353f;
+  --navy:#08182a; --teal:#4fc2c4; --teal-soft:#16393d; --hit:#2d9a9c; --on:#3f8fae; --out:#6f818c; --warn:#e2a24a; --bad:#e0685f; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+
+header{position:sticky;top:0;z-index:5;background:var(--navy);color:#e6eef2;padding:calc(env(safe-area-inset-top,0px) + 8px) 16px 8px;display:flex;align-items:center;gap:10px}
+header img{height:38px;width:auto;border-radius:5px}
+header h1{font-size:18px;font-weight:900;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sync{font-size:12px;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.1);white-space:nowrap}
+.sync.ok::before,.sync.wait::before,.sync.off::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.sync.ok::before{background:#3fae6b}.sync.wait::before{background:#e2a24a}.sync.off::before{background:#e0685f}
+header a{color:#9fd8d9;font-size:13px;text-decoration:none;white-space:nowrap}
+
+main{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:14px 150px;display:grid;gap:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 10px}
+.sec-h h2{font-size:15px;margin:0;font-weight:700}
+.sec-h h2 small{font-family:var(--display);letter-spacing:.14em;color:var(--teal);font-size:12px;margin-left:8px;font-weight:600}
+.link{background:none;border:0;color:var(--teal);font-size:13px;padding:4px 0}
+
+.game{display:grid;grid-template-columns:1fr 1.4fr auto;gap:10px;align-items:end}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+.field input{width:100%;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px}
+.stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--bg)}
+.stepper button{width:38px;height:42px;border:0;background:transparent;font-size:20px}
+.stepper output{min-width:46px;text-align:center;font-family:var(--display);font-size:22px;font-weight:700}
+.stepper output small{font-family:var(--body);font-size:12px;font-weight:500;margin-left:1px}
+@media (max-width:460px){.game{grid-template-columns:1fr 1fr}.game .inning{grid-column:1/-1}.stepper{justify-content:space-between}}
+
+.tabs{display:flex;gap:6px;margin-bottom:10px}
+.tabs button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:5px 14px;font-size:13px}
+.tabs button[aria-selected="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+.batters{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:8px}
+.bat{position:relative;border:1.5px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 8px 7px;text-align:left;min-height:62px;display:flex;flex-direction:column;gap:1px}
+.bat .no{font-family:var(--display);font-weight:700;font-size:15px;color:var(--muted);line-height:1}
+.bat .nm{font-weight:700;font-size:16px;line-height:1.25}
+.bat .td{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bat .ord{position:absolute;top:6px;right:7px;font-family:var(--display);font-weight:700;font-size:13px;color:var(--teal)}
+.bat[aria-pressed="true"]{border-color:var(--teal);background:var(--teal-soft);box-shadow:inset 0 0 0 1.5px var(--teal)}
+.bat.picked{opacity:.45}
+
+.pad{display:grid;gap:10px}
+.group{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.group .gl{grid-column:1/-1;font-size:12px;color:var(--muted);letter-spacing:.06em}
+.res{border:0;border-radius:8px;min-height:52px;font-weight:700;font-size:16px;padding:6px 4px;color:#fff}
+.res.hit{background:var(--hit)}.res.on{background:var(--on)}.res.out{background:var(--out)}
+.res[aria-pressed="true"]{outline:3px solid var(--ink);outline-offset:2px}
+.pad.dim .res:not([aria-pressed="true"]){opacity:.55}
+@media (max-width:380px){.group{grid-template-columns:repeat(3,1fr)}}
+
+.rbi{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.rbi button{min-height:46px;border:1.5px solid var(--line);background:var(--bg);border-radius:8px;font-family:var(--display);font-size:22px;font-weight:700}
+.rbi button[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+
+.log{list-style:none;margin:0;padding:0}
+.log li{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.log li:first-child{border-top:0}
+.log .inn{font-family:var(--display);font-size:18px;font-weight:700;color:var(--muted)}
+.log .who{min-width:0}
+.log .who b{font-weight:700}
+.log .who span{display:block;font-size:13px;color:var(--muted)}
+.tag{font-size:11px;color:var(--warn);border:1px solid currentColor;border-radius:4px;padding:0 5px;margin-left:6px}
+.del{border:1px solid var(--line);background:transparent;border-radius:6px;padding:5px 10px;font-size:13px;color:var(--muted)}
+.del.arm{border-color:var(--bad);color:#fff;background:var(--bad)}
+.empty{color:var(--muted);font-size:14px;margin:4px 0}
+
+.submit{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 10px)}
+.submit .in{max-width:720px;margin:0 auto;display:flex;gap:12px;align-items:center}
+.summary{flex:1;min-width:0;font-size:14px;line-height:1.35}
+.summary b{font-size:16px}
+.summary .hint{color:var(--muted)}
+.go{border:0;border-radius:10px;background:var(--teal);color:#fff;font-weight:900;font-size:18px;padding:14px 22px;white-space:nowrap}
+.go:disabled{background:var(--line);color:var(--muted);cursor:not-allowed}
+
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 62px);transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;z-index:9;max-width:calc(100% - 32px);text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.toast.bad{background:var(--bad)}
+
+.gate{max-width:420px;margin:12vh auto 0;padding-inline:16px;text-align:center;display:grid;gap:14px}
+.gate img{width:160px;margin:0 auto;border-radius:10px}
+.gate h2{margin:0;font-size:22px}
+.gate p{margin:0;color:var(--muted)}
+.gate input{text-align:center;font-size:24px;letter-spacing:.3em;padding:12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface)}
+.gate .go{width:100%}
+.gate code{background:var(--surface);padding:1px 6px;border-radius:4px;border:1px solid var(--line)}
+
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(5,15,25,.5);display:flex;align-items:flex-end;justify-content:center}
+.sheet .box{background:var(--surface);width:min(720px,100%);max-height:88vh;overflow:auto;border-radius:14px 14px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 16px);display:grid;gap:12px}
+.sheet h3{margin:0;font-size:17px}
+.sheet p{margin:0;color:var(--muted);font-size:13px}
+.row{display:flex;gap:10px;justify-content:flex-end}
+.btn2{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:10px 16px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <img src="logo.jpg" alt="福爾摩鯊隊徽">
+  <h1>福爾摩鯊 記錄台</h1>
+  <span class="sync" id="sync">連線中…</span>
+  <a href="./">成績頁</a>
+</header>
+
+<!-- 未設定 API -->
+<section class="gate" id="noApi" hidden>
+  <img src="logo.jpg" alt="">
+  <h2>記錄台尚未啟用</h2>
+  <p>請先完成 Google Apps Script 部署，並將網址填入 repo 中 <code>config.js</code> 的 <code>API_URL</code>。</p>
+</section>
+
+<!-- 輸入密碼 -->
+<form class="gate" id="pinGate" hidden>
+  <img src="logo.jpg" alt="">
+  <h2>輸入記錄密碼</h2>
+  <p>僅限球隊記錄員使用。密碼會保存在這支手機上。</p>
+  <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" aria-label="記錄密碼" required>
+  <button class="go" type="submit">進入記錄台</button>
+</form>
+
+<main id="app" hidden>
+  <section class="card" aria-label="比賽資訊">
+    <div class="game">
+      <div class="field"><label for="gDate">比賽日期</label><input id="gDate" type="date"></div>
+      <div class="field"><label for="gOpp">對手</label><input id="gOpp" type="text" placeholder="例如：府城聯隊" maxlength="30"></div>
+      <div class="field inning"><label>局數</label>
+        <div class="stepper"><button type="button" id="innDn" aria-label="上一局">−</button><output id="inn">1<small>局</small></output><button type="button" id="innUp" aria-label="下一局">＋</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="選擇打者">
+    <div class="sec-h"><h2>打者<small>BATTER</small></h2><button class="link" type="button" id="editLineup">編輯打序</button></div>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tabLineup" aria-selected="true">打序</button>
+      <button type="button" role="tab" id="tabAll" aria-selected="false">全部球員</button>
+    </div>
+    <div class="batters" id="batters"></div>
+  </section>
+
+  <section class="card" aria-label="打擊結果">
+    <div class="sec-h"><h2>結果<small>RESULT</small></h2></div>
+    <div class="pad" id="pad"></div>
+  </section>
+
+  <section class="card" aria-label="打點">
+    <div class="sec-h"><h2>打點<small>RBI</small></h2></div>
+    <div class="rbi" id="rbi"></div>
+  </section>
+
+  <section class="card" aria-label="本場記錄">
+    <div class="sec-h"><h2>本場記錄<small>THIS GAME</small></h2><button class="link" type="button" id="logout">更換密碼</button></div>
+    <ol class="log" id="log"></ol>
+  </section>
+</main>
+
+<div class="submit" id="submitBar" hidden>
+  <div class="in">
+    <div class="summary" id="summary"></div>
+    <button class="go" id="go" type="button" disabled>送出</button>
+  </div>
+</div>
+
+<div class="sheet" id="lineupSheet" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="luTitle">
+    <h3 id="luTitle">編輯打序</h3>
+    <p>依序點選球員排出打序，再點一次可移除。送出記錄後會自動跳到下一棒。</p>
+    <div class="batters" id="luGrid"></div>
+    <div class="row"><button class="btn2" type="button" id="luClear">清除打序</button><button class="go" type="button" id="luDone">完成</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="config.js"></script>
+<script src="stats.js"></script>
+<script>
+const CFG = window.FS_CONFIG || {};
+const $ = id => document.getElementById(id);
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem("fs_" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("fs_" + k, JSON.stringify(v)); } catch {} }
+};
+function h(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (v == null || v === false) continue; if (k === "class") e.className = v; else if (k === "text") e.textContent = v; else e.setAttribute(k, v === true ? "" : v); }
+  kids.flat().forEach(k => k != null && e.append(k)); return e;
+}
+const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+
+/* ---------- 狀態 ---------- */
+let API = { roster: [], log: [] };
+let queue = LS.get("queue", []);
+let pin = LS.get("pin", "");
+let game = LS.get("game", null);
+if (!game || game.date !== today() && !game.keep) game = { date: today(), opp: game && game.date === today() ? game.opp : "", inning: 1 };
+let lineup = LS.get("lineup", []);
+let tab = lineup.length ? "lineup" : "all";
+let sel = { name: null, result: null, rbi: 0 };
+let busy = false;
+
+const saveGame = () => LS.set("game", game);
+const gkey = () => FS.gameKey(game);
+const rosterBy = name => API.roster.find(p => p.name === name);
+
+/* ---------- 網路 ---------- */
+async function api(method, body) {
+  const url = CFG.API_URL + (method === "GET" ? (CFG.API_URL.includes("?") ? "&" : "?") + "t=" + Date.now() : "");
+  const r = await fetch(url, method === "GET" ? { cache: "no-store" } : { method: "POST", body: JSON.stringify(body) });
+  if (!r.ok) throw Object.assign(new Error("HTTP " + r.status), { net: true });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || "伺服器錯誤");
+  return j;
+}
+async function refresh() {
+  try { API = await api("GET"); renderAll(); setSync(); }
+  catch (e) { setSync(true); }
+}
+async function flush() {
+  if (busy || !queue.length) return setSync();
+  busy = true; setSync();
+  const sending = queue.slice();
+  try {
+    API = await api("POST", { action: "add", pin, entries: sending });
+    const sent = new Set(sending.map(x => x.id));
+    queue = queue.filter(x => !sent.has(x.id)); LS.set("queue", queue);
+    renderAll();
+  } catch (e) {
+    if (/密碼/.test(e.message)) { pin = ""; LS.set("pin", ""); showGate(); toast("記錄密碼錯誤，請重新輸入", true); }
+    else if (!e.net && !/Failed to fetch|NetworkError|Load failed/i.test(e.message)) toast(e.message, true);
+  } finally { busy = false; setSync(); }
+}
+function setSync(offline) {
+  const s = $("sync");
+  if (queue.length) { s.className = "sync " + (offline || !navigator.onLine ? "off" : "wait"); s.textContent = queue.length + " 筆待上傳"; }
+  else if (offline) { s.className = "sync off"; s.textContent = "離線"; }
+  else { s.className = "sync ok"; s.textContent = "已同步"; }
+}
+
+/* ---------- 畫面 ---------- */
+function gameLog() {
+  const k = gkey();
+  const server = API.log.filter(r => FS.gameKey(r) === k).map(r => ({ ...r, pending: false }));
+  const ids = new Set(server.map(r => r.id));
+  const pend = queue.filter(r => FS.gameKey(r) === k && !ids.has(r.id)).map(r => ({ ...r, pending: true }));
+  return server.concat(pend).sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
+}
+
+function batterBtn(p, opts = {}) {
+  const today = opts.line || "";
+  return h("button", { type: "button", class: "bat" + (opts.cls ? " " + opts.cls : ""), "aria-pressed": opts.pressed ? "true" : "false" },
+    opts.ord ? h("span", { class: "ord", text: opts.ord }) : null,
+    h("span", { class: "no", text: "#" + (p.num || "—") }),
+    h("span", { class: "nm", text: p.name }),
+    today ? h("span", { class: "td", text: today }) : null);
+}
+
+function renderBatters() {
+  const lg = gameLog();
+  const lineFor = name => lg.filter(r => r.name === name).map(r => (FS.BY_LABEL[r.result] || {}).short || r.result).join(" ");
+  const list = tab === "lineup" && lineup.length ? lineup.map(n => rosterBy(n)).filter(Boolean) : API.roster;
+  $("tabLineup").setAttribute("aria-selected", tab === "lineup"); $("tabAll").setAttribute("aria-selected", tab === "all");
+  const box = $("batters");
+  if (tab === "lineup" && !lineup.length) {
+    box.replaceChildren(h("p", { class: "empty", text: "尚未設定打序。點「編輯打序」排好棒次，送出後會自動輪到下一棒；也可以直接在「全部球員」點選打者。" }));
+    return;
+  }
+  box.replaceChildren(...list.map(p => {
+    const b = batterBtn(p, { pressed: sel.name === p.name, ord: tab === "lineup" ? String(lineup.indexOf(p.name) + 1) : null, line: lineFor(p.name) });
+    b.onclick = () => { sel.name = sel.name === p.name ? null : p.name; renderBatters(); renderSummary(); };
+    return b;
+  }));
+}
+
+function renderPad() {
+  const groups = [["安打", "hit"], ["上壘", "on"], ["出局", "out"]];
+  $("pad").classList.toggle("dim", !!sel.result);
+  $("pad").replaceChildren(...groups.map(([label, kind]) => h("div", { class: "group" },
+    h("span", { class: "gl", text: label }),
+    FS.RESULTS.filter(r => r.kind === kind).map(r => {
+      const b = h("button", { type: "button", class: "res " + kind, "aria-pressed": sel.result === r.label ? "true" : "false", text: r.short });
+      b.onclick = () => { sel.result = sel.result === r.label ? null : r.label; if (sel.result === "全壘打" && sel.rbi === 0) sel.rbi = 1; renderPad(); renderRbi(); renderSummary(); };
+      return b;
+    }))));
+}
+
+function renderRbi() {
+  $("rbi").replaceChildren(...[0, 1, 2, 3, 4].map(n => {
+    const b = h("button", { type: "button", "aria-pressed": sel.rbi === n ? "true" : "false", text: n });
+    b.onclick = () => { sel.rbi = n; renderRbi(); renderSummary(); };
+    return b;
+  }));
+}
+
+function renderLog() {
+  const lg = gameLog().reverse();
+  const ol = $("log");
+  if (!lg.length) { ol.replaceChildren(h("li", {}, h("p", { class: "empty", text: "本場尚無記錄。" }))); ol.firstChild.style.display = "block"; return; }
+  ol.replaceChildren(...lg.map(r => {
+    const del = h("button", { type: "button", class: "del", text: "刪除" });
+    del.onclick = () => {
+      if (!del.classList.contains("arm")) { del.classList.add("arm"); del.textContent = "確認刪除"; setTimeout(() => { del.classList.remove("arm"); del.textContent = "刪除"; }, 3000); return; }
+      removeEntry(r);
+    };
+    return h("li", {},
+      h("span", { class: "inn", text: (r.inning || "—") + "局" }),
+      h("div", { class: "who" }, h("b", { text: "#" + r.num + " " + r.name }), r.pending ? h("span", { class: "tag", text: "待上傳" }) : null,
+        h("span", { text: r.result + (r.rbi ? " · " + r.rbi + " 分打點" : "") })),
+      del);
+  }));
+}
+
+function renderSummary() {
+  const p = sel.name && rosterBy(sel.name);
+  $("summary").replaceChildren(
+    p ? h("b", { text: "#" + p.num + " " + p.name }) : h("span", { class: "hint", text: "① 選打者" }),
+    h("br"),
+    sel.result ? h("span", { text: `${game.inning}局 · ${sel.result} · ${sel.rbi} 打點` }) : h("span", { class: "hint", text: p ? "② 選結果" : "② 選結果　③ 打點" }));
+  $("go").disabled = !(p && sel.result);
+}
+
+function renderGame() { $("gDate").value = game.date; $("gOpp").value = game.opp; $("inn").firstChild.textContent = game.inning; }
+
+function renderAll() { renderGame(); renderBatters(); renderPad(); renderRbi(); renderLog(); renderSummary(); }
+
+/* ---------- 動作 ---------- */
+function submit() {
+  const p = rosterBy(sel.name); if (!p || !sel.result) return;
+  const entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), ts: new Date().toISOString(),
+                  date: game.date, opp: game.opp.trim(), inning: game.inning, num: p.num, name: p.name, result: sel.result, rbi: sel.rbi };
+  queue.push(entry); LS.set("queue", queue);
+  toast(`已記錄　#${p.num} ${p.name}　${sel.result}${sel.rbi ? "　" + sel.rbi + " 打點" : ""}`);
+  // 下一棒
+  if (lineup.length && lineup.includes(p.name)) { sel.name = lineup[(lineup.indexOf(p.name) + 1) % lineup.length]; tab = "lineup"; }
+  else sel.name = null;
+  sel.result = null; sel.rbi = 0;
+  renderAll(); flush();
+}
+
+async function removeEntry(r) {
+  if (r.pending) { queue = queue.filter(x => x.id !== r.id); LS.set("queue", queue); renderAll(); setSync(); toast("已刪除"); return; }
+  try { API = await api("POST", { action: "delete", pin, id: r.id }); renderAll(); toast("已刪除"); }
+  catch (e) { toast(/密碼/.test(e.message) ? "記錄密碼錯誤" : "需連線才能刪除已上傳的記錄", true); }
+}
+
+let toastT;
+function toast(msg, bad) { const t = $("toast"); t.textContent = msg; t.className = "toast" + (bad ? " bad" : ""); t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600); }
+
+/* 打序編輯 */
+let draft = [];
+function renderLineupSheet() {
+  $("luGrid").replaceChildren(...API.roster.map(p => {
+    const i = draft.indexOf(p.name);
+    const b = batterBtn(p, { pressed: i >= 0, ord: i >= 0 ? String(i + 1) : null });
+    b.onclick = () => { i >= 0 ? draft.splice(i, 1) : draft.push(p.name); renderLineupSheet(); };
+    return b;
+  }));
+}
+$("editLineup").onclick = () => { draft = lineup.slice(); renderLineupSheet(); $("lineupSheet").hidden = false; };
+$("luClear").onclick = () => { draft = []; renderLineupSheet(); };
+$("luDone").onclick = () => {
+  lineup = draft.slice(); LS.set("lineup", lineup); $("lineupSheet").hidden = true;
+  tab = lineup.length ? "lineup" : "all"; if (lineup.length && !sel.name) sel.name = lineup[0]; renderAll();
+};
+$("lineupSheet").onclick = e => { if (e.target === $("lineupSheet")) $("lineupSheet").hidden = true; };
+$("tabLineup").onclick = () => { tab = "lineup"; renderBatters(); };
+$("tabAll").onclick = () => { tab = "all"; renderBatters(); };
+
+$("gDate").onchange = e => { game.date = e.target.value || today(); game.keep = game.date !== today(); saveGame(); renderAll(); };
+$("gOpp").oninput = e => { game.opp = e.target.value; saveGame(); };
+$("gOpp").onchange = () => renderAll();
+$("innDn").onclick = () => { game.inning = Math.max(1, game.inning - 1); saveGame(); renderGame(); renderSummary(); };
+$("innUp").onclick = () => { game.inning = Math.min(15, game.inning + 1); saveGame(); renderGame(); renderSummary(); };
+$("go").onclick = submit;
+$("logout").onclick = () => { pin = ""; LS.set("pin", ""); showGate(); };
+
+/* ---------- 啟動 ---------- */
+function showGate() { $("app").hidden = true; $("submitBar").hidden = true; $("pinGate").hidden = false; $("pinInput").value = ""; $("pinInput").focus(); }
+function showApp() { $("pinGate").hidden = true; $("app").hidden = false; $("submitBar").hidden = false; renderAll(); }
+$("pinGate").onsubmit = e => { e.preventDefault(); pin = $("pinInput").value.trim(); if (!pin) return; LS.set("pin", pin); showApp(); flush(); };
+
+(async () => {
+  if (!CFG.API_URL) { $("noApi").hidden = false; $("sync").textContent = "未啟用"; return; }
+  await refresh();
+  if (!pin) showGate(); else showApp();
+  flush();
+  setInterval(() => { if (document.hidden) return; queue.length ? flush() : refresh(); }, 20000);
+  addEventListener("online", flush);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) queue.length ? flush() : refresh(); });
+})();
+</script>
+</body>
+</html>
