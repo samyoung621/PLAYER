@@ -6,16 +6,20 @@ window.FS = (function () {
     { label: "三壘安打", code: "3B", short: "三安", kind: "hit" },
     { label: "全壘打",   code: "HR", short: "全壘打", kind: "hit" },
     { label: "四壞球",   code: "BB", short: "四壞", kind: "on" },
-    { label: "觸身球",   code: "HBP", short: "觸身", kind: "on" },
     { label: "失誤上壘", code: "E", short: "失誤", kind: "on" },
     { label: "野手選擇", code: "FC", short: "野選", kind: "on" },
     { label: "三振",     code: "K", short: "三振", kind: "out" },
     { label: "滾地出局", code: "GO", short: "滾地", kind: "out" },
     { label: "飛球出局", code: "FO", short: "飛球", kind: "out" },
-    { label: "犧牲觸擊", code: "SH", short: "犧觸", kind: "out" },
+    { label: "雙殺打",   code: "DP", short: "雙殺", kind: "out" },
     { label: "高飛犧牲打", code: "SF", short: "犧飛", kind: "out" }
   ];
-  const BY_LABEL = Object.fromEntries(RESULTS.map(r => [r.label, r]));
+  // 舊記錄相容：已停用的結果仍可計入統計，但不顯示在記錄台按鈕上
+  const RETIRED = [
+    { label: "觸身球", code: "HBP", short: "觸身", kind: "on" },
+    { label: "犧牲觸擊", code: "SH", short: "犧觸", kind: "out" }
+  ];
+  const BY_LABEL = Object.fromEntries(RESULTS.concat(RETIRED).map(r => [r.label, r]));
   const NOT_AB = ["BB", "HBP", "SH", "SF"];
   const blank = () => ({ pa: 0, ab: 0, h: 0, rbi: 0, s: 0, d: 0, t: 0, hr: 0, roe: 0, so: 0, bb: 0, hbp: 0, sf: 0 });
 
