@@ -55,6 +55,22 @@ function doPost(e) {
         seen.add(String(it.id));
       });
       if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, LOG_HEAD.length).setValues(rows);
+    } else if (body.action === 'update') {
+      const i = ids_(sh).indexOf(String(body.id));
+      if (i < 0) throw new Error('找不到這筆記錄，可能已被刪除');
+      const c = body.changes || {};
+      if (c.result !== undefined && !RESULTS[c.result]) throw new Error('未知的打擊結果：' + c.result);
+      const row = sh.getRange(i + 2, 1, 1, LOG_HEAD.length);
+      const v = row.getValues()[0];
+      // 欄位：0 id, 1 記錄時間, 2 比賽日期, 3 對手, 4 局數, 5 背號, 6 姓名, 7 結果, 8 打點
+      if (c.date !== undefined) v[2] = String(c.date);
+      if (c.opp !== undefined) v[3] = String(c.opp);
+      if (c.inning !== undefined) v[4] = Number(c.inning) || '';
+      if (c.num !== undefined) v[5] = String(c.num);
+      if (c.name !== undefined) { if (!c.name) throw new Error('缺少打者姓名'); v[6] = String(c.name); }
+      if (c.result !== undefined) v[7] = c.result;
+      if (c.rbi !== undefined) v[8] = Number(c.rbi) || 0;
+      row.setValues([v]);
     } else if (body.action === 'delete') {
       const i = ids_(sh).indexOf(String(body.id));
       if (i >= 0) sh.deleteRow(i + 2);

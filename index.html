@@ -100,6 +100,9 @@ tfoot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:0}
 .feed{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line)}
 .feed li{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
 .feed li:last-child{border-bottom:0}
+.feed li.ih{display:flex;justify-content:space-between;align-items:baseline;background:color-mix(in srgb,var(--field) 8%,transparent);padding:7px 14px;font-weight:700;font-size:14px}
+.feed li.ih span{font-weight:400;color:var(--muted);font-size:12.5px}
+.feedgame{font-size:14px;font-weight:500;color:var(--muted)}
 .feed li.new{animation:flash 2.4s ease-out}
 @keyframes flash{from{background:color-mix(in srgb,var(--gold) 28%,transparent)}to{background:transparent}}
 .feed .when{font-family:var(--display);font-size:15px;color:var(--muted);line-height:1.2}
@@ -155,7 +158,7 @@ tfoot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:0}
   </div>
 
   <section id="liveSec" hidden>
-    <h2>即時動態 <small>Live</small></h2>
+    <h2>逐局記錄 <small>Play by Play</small> <span class="feedgame" id="feedGame"></span></h2>
     <ol class="feed" id="feed"></ol>
   </section>
 
@@ -360,16 +363,26 @@ function renderScopes(){
   sel.value=games.includes(cur)?cur:"";
 }
 function renderFeed(log){
-  const items=[...log].sort((a,b)=>String(b.ts).localeCompare(String(a.ts))).slice(0,8);
-  el("liveSec").hidden=!items.length;
-  el("feed").replaceChildren(...items.map(r=>{
-    const def=FS.BY_LABEL[r.result]||{kind:"out"};const d=new Date(r.ts);
-    const li=h("li",{},
-      h("div",{class:"when"},h("b",{text:r.inning?r.inning+"局":"—"}),isNaN(d)?"":pad(d.getHours())+":"+pad(d.getMinutes())),
-      h("div",{class:"who"},h("i",{text:"#"+r.num}),r.name,r.opp?h("small",{text:"vs "+r.opp}):null),
-      h("span",{class:"chip "+def.kind},r.result,r.rbi>0?h("em",{text:r.rbi+"分打點"}):null));
-    if(seenIds&&!seenIds.has(r.id))li.classList.add("new");
-    return li;
+  // 單場：顯示該場；全季：顯示最近一場。整場逐局列出，最新一局在最上面
+  let k=el("scope").value;
+  if(!k&&log.length){const last=log.reduce((a,b)=>String(b.ts)>String(a.ts)?b:a);k=FS.gameKey(last)}
+  const game=log.filter(r=>FS.gameKey(r)===k);
+  el("liveSec").hidden=!game.length;
+  el("feedGame").textContent=game.length?gameLabel(k):"";
+  const innings=[...new Set(game.map(r=>Number(r.inning)||0))].sort((a,b)=>b-a);
+  el("feed").replaceChildren(...innings.flatMap(n=>{
+    const rows=game.filter(r=>(Number(r.inning)||0)===n).sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
+    const hits=rows.filter(r=>(FS.BY_LABEL[r.result]||{}).kind==="hit").length, rbi=rows.reduce((a,r)=>a+(Number(r.rbi)||0),0);
+    return [h("li",{class:"ih"},n?"第 "+n+" 局":"未填局數",h("span",{text:`${rows.length} 打席 · ${hits} 安打 · ${rbi} 打點`})),
+      ...rows.map(r=>{
+        const def=FS.BY_LABEL[r.result]||{kind:"out"};const d=new Date(r.ts);
+        const li=h("li",{},
+          h("div",{class:"when"},h("b",{text:r.inning?r.inning+"局":"—"}),isNaN(d)?"":pad(d.getHours())+":"+pad(d.getMinutes())),
+          h("div",{class:"who"},h("i",{text:"#"+r.num}),r.name),
+          h("span",{class:"chip "+def.kind},r.result,r.rbi>0?h("em",{text:r.rbi+"分打點"}):null));
+        if(seenIds&&!seenIds.has(r.id))li.classList.add("new");
+        return li;
+      })];
   }));
   seenIds=new Set(API.log.map(r=>r.id));
 }
