@@ -71,6 +71,21 @@ function doPost(e) {
       if (c.result !== undefined) v[7] = c.result;
       if (c.rbi !== undefined) v[8] = Number(c.rbi) || 0;
       row.setValues([v]);
+    } else if (body.action === 'renameGame') {
+      // 一次修改某場比賽所有記錄的日期／對手
+      const f = body.from || {}, t = body.to || {};
+      const last = sh.getLastRow();
+      if (last >= 2) {
+        const tz = Session.getScriptTimeZone();
+        const rng = sh.getRange(2, 3, last - 1, 2), v = rng.getValues();
+        let n = 0;
+        v.forEach(function (r) {
+          const d = r[0] instanceof Date ? Utilities.formatDate(r[0], tz, 'yyyy-MM-dd') : String(r[0]);
+          if (d === String(f.date || '') && String(r[1]) === String(f.opp || '')) { r[0] = String(t.date || ''); r[1] = String(t.opp || ''); n++; }
+          else r[0] = d;
+        });
+        if (n) rng.setValues(v);
+      }
     } else if (body.action === 'delete') {
       const i = ids_(sh).indexOf(String(body.id));
       if (i >= 0) sh.deleteRow(i + 2);

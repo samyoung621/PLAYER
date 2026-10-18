@@ -125,7 +125,14 @@ main{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:14px 150px;
 .gamebar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
 .gamebar .past{font-size:12px;color:var(--warn);border:1px solid currentColor;border-radius:4px;padding:1px 6px}
 .games{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.games button{width:100%;text-align:left;border:1.5px solid var(--line);background:var(--bg);border-radius:8px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center}
+.games li{display:flex;gap:8px;align-items:stretch}
+.games .rn{flex:none;border:1px solid var(--line);background:transparent;border-radius:8px;padding:0 12px;color:var(--teal);font-size:13px}
+.choice{display:grid;gap:8px}
+.choice button{text-align:left;border:1.5px solid var(--line);background:var(--bg);border-radius:8px;padding:12px}
+.choice button b{display:block;font-size:15px}
+.choice button span{font-size:13px;color:var(--muted)}
+.choice button.pri{border-color:var(--teal);background:var(--teal-soft)}
+.games button{flex:1;min-width:0;width:100%;text-align:left;border:1.5px solid var(--line);background:var(--bg);border-radius:8px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center}
 .games button[aria-current="true"]{border-color:var(--teal);background:var(--teal-soft)}
 .games b{font-size:16px}
 .games span{font-size:13px;color:var(--muted)}
@@ -238,6 +245,30 @@ main{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:14px 150px;
     <div class="lbl">打點</div>
     <div class="rbi" id="edRbi"></div>
     <div class="row"><button class="btn2 danger" type="button" id="edDel">刪除這筆</button><span class="sp"></span><button class="btn2" type="button" id="edCancel">取消</button><button class="go" type="button" id="edSave">儲存修改</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="renameSheet" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="rnTitle">
+    <h3 id="rnTitle">修改比賽資訊</h3>
+    <p id="rnInfo"></p>
+    <div class="game" style="grid-template-columns:1fr 1.4fr">
+      <div class="field"><label for="rnDate">比賽日期</label><input id="rnDate" type="date"></div>
+      <div class="field"><label for="rnOpp">對手</label><input id="rnOpp" type="text" maxlength="30" placeholder="輸入對手隊名"></div>
+    </div>
+    <p id="rnMerge" hidden></p>
+    <div class="row"><button class="btn2" type="button" id="rnCancel">取消</button><button class="go" type="button" id="rnSave">套用到全部記錄</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="askSheet" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <h3 id="askTitle">比賽資訊已變更</h3>
+    <p id="askInfo"></p>
+    <div class="choice">
+      <button type="button" class="pri" id="askApply"><b>修改本場比賽</b><span id="askApplySub"></span></button>
+      <button type="button" id="askNew"><b>這是另一場比賽</b><span>原有記錄保持不變，接下來的記錄算在新的比賽</span></button>
+    </div>
   </div>
 </div>
 
@@ -474,7 +505,9 @@ function renderGames() {
       game = { date: d || today(), opp: o, inning: inn, keep: d !== today() };
       saveGame(); $("gameSheet").hidden = true; sel = { name: null, result: null, rbi: 0 }; renderAll();
     };
-    return h("li", {}, b);
+    const rn = h("button", { type: "button", class: "rn", text: "改名" });
+    rn.onclick = () => openRename({ date: d, opp: o });
+    return h("li", {}, b, rows.length ? rn : null);
   }));
 }
 $("pickGame").onclick = () => { renderGames(); $("gameSheet").hidden = false; };
@@ -502,9 +535,66 @@ $("lineupSheet").onclick = e => { if (e.target === $("lineupSheet")) $("lineupSh
 $("tabLineup").onclick = () => { tab = "lineup"; renderBatters(); };
 $("tabAll").onclick = () => { tab = "all"; renderBatters(); };
 
-$("gDate").onchange = e => { game.date = e.target.value || today(); game.keep = game.date !== today(); saveGame(); renderAll(); };
-$("gOpp").oninput = e => { game.opp = e.target.value; saveGame(); };
-$("gOpp").onchange = () => renderAll();
+/* 比賽資訊變更：本場已有記錄時，詢問要修改本場還是另開一場 */
+const countGame = g => API.log.concat(queue).filter(r => FS.gameKey(r) === FS.gameKey(g)).length;
+const gameText = g => (g.date || "未填日期").replace(/-/g, "/") + "　" + (g.opp ? "vs " + g.opp : "未填對手");
+function changeGame(to) {
+  const from = { date: game.date, opp: game.opp };
+  if (FS.gameKey(to) === FS.gameKey(from)) return;
+  const n = countGame(from);
+  if (!n) { Object.assign(game, to, { keep: to.date !== today() }); saveGame(); renderAll(); return; }
+  $("askInfo").textContent = `目前這場（${gameText(from)}）已有 ${n} 筆記錄，改為「${gameText(to)}」要怎麼處理？`;
+  const m = countGame(to);
+  $("askApplySub").textContent = `把這 ${n} 筆記錄一起改成新的日期／對手` + (m ? `，並與該場已有的 ${m} 筆合併` : "");
+  $("askApply").onclick = async () => { $("askSheet").hidden = true; await renameGame(from, to); };
+  $("askNew").onclick = () => { $("askSheet").hidden = true; Object.assign(game, to, { keep: to.date !== today() }); saveGame(); renderAll(); };
+  $("askSheet").hidden = false;
+}
+$("askSheet").onclick = e => { if (e.target === $("askSheet")) { $("askSheet").hidden = true; renderGame(); } };
+$("gDate").onchange = e => changeGame({ date: e.target.value || today(), opp: game.opp });
+$("gOpp").onchange = e => changeGame({ date: game.date, opp: e.target.value.trim() });
+
+async function renameGame(from, to) {
+  const fk = FS.gameKey(from), cur = FS.gameKey(game) === fk;
+  let changed = false;
+  queue.forEach(q => { if (FS.gameKey(q) === fk) { q.date = to.date; q.opp = to.opp; changed = true; } });
+  if (changed) LS.set("queue", queue);
+  const ids = API.log.filter(r => FS.gameKey(r) === fk).map(r => r.id);
+  try {
+    if (ids.length) {
+      try { API = await api("POST", { action: "renameGame", pin, from, to }); }
+      catch (e) {
+        if (!/未知的動作/.test(e.message)) throw e;
+        // 後端尚未更新時，逐筆修改
+        for (const id of ids) API = await api("POST", { action: "update", pin, id, changes: { date: to.date, opp: to.opp } });
+      }
+    }
+    if (cur) { Object.assign(game, to, { keep: to.date !== today() }); saveGame(); }
+    renderAll(); flush(); toast("已修改比賽資訊");
+  } catch (e) {
+    renderAll();
+    toast(/密碼/.test(e.message) ? "記錄密碼錯誤" : "需連線才能修改比賽資訊，請稍後再試", true);
+  }
+}
+
+let rnFrom = null;
+function openRename(g) {
+  rnFrom = g;
+  $("rnInfo").textContent = `這場（${gameText(g)}）共 ${countGame(g)} 筆記錄，修改後全部一起更新。`;
+  $("rnDate").value = g.date || today(); $("rnOpp").value = g.opp || "";
+  $("rnMerge").hidden = true; $("gameSheet").hidden = true; $("renameSheet").hidden = false; $("rnOpp").focus();
+}
+const rnTo = () => ({ date: $("rnDate").value || today(), opp: $("rnOpp").value.trim() });
+$("rnOpp").oninput = $("rnDate").oninput = () => {
+  const t = rnTo(), m = FS.gameKey(t) !== FS.gameKey(rnFrom) ? countGame(t) : 0;
+  $("rnMerge").hidden = !m; $("rnMerge").textContent = m ? `「${gameText(t)}」已有 ${m} 筆記錄，儲存後兩場會合併成一場。` : "";
+};
+$("rnCancel").onclick = () => $("renameSheet").hidden = true;
+$("renameSheet").onclick = e => { if (e.target === $("renameSheet")) $("renameSheet").hidden = true; };
+$("rnSave").onclick = async () => {
+  const t = rnTo(); $("renameSheet").hidden = true;
+  if (FS.gameKey(t) !== FS.gameKey(rnFrom)) await renameGame(rnFrom, t);
+};
 $("innDn").onclick = () => { game.inning = Math.max(1, game.inning - 1); saveGame(); renderGame(); renderSummary(); };
 $("innUp").onclick = () => { game.inning = Math.min(15, game.inning + 1); saveGame(); renderGame(); renderSummary(); };
 $("go").onclick = submit;
